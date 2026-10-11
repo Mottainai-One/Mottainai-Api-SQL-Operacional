@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -112,15 +113,12 @@ class ApiSecurityTest {
     }
 
     @Test
-    @DisplayName("Should reserve customer catalog reads for authenticated customers")
-    void shouldReserveCustomerCatalogForCustomers() throws Exception {
+    @DisplayName("Should require Firebase JWT authentication for customer catalog reads")
+    void shouldRequireFirebaseJwtForCustomerCatalog() throws Exception {
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
-                .with(user("admin@mottainai.com").roles("ADMINISTRATOR")))
-            .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
-                .with(user("customer@mottainai.com").roles("CUSTOMER")))
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
             .andExpect(status().isOk());
     }
 

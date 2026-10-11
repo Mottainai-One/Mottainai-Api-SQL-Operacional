@@ -1,6 +1,6 @@
 # API para o aplicativo Cliente
 
-Todas as rotas abaixo usam `/api/v1`. Envie `Authorization: Bearer <accessToken>` nas leituras autenticadas. O token de cliente usa o papel `CUSTOMER`; tokens Firebase da rota `/client/**` e tokens de funcionário não dão acesso ao catálogo do cliente.
+Todas as rotas abaixo usam `/api/v1`. Envie `Authorization: Bearer <firebaseIdToken>` nas rotas de catálogo. O catálogo e as rotas `/client/**` validam o token Firebase com o mesmo projeto configurado no backend; não é necessário incluir um papel `CUSTOMER` no token. As rotas legadas `/customers/**` continuam usando a autenticação própria da API descrita na seção Conta.
 
 ## Conta
 
