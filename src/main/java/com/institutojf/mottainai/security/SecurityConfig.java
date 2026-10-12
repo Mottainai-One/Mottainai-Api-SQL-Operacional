@@ -94,7 +94,7 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain clientSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/api/v1/client/**", "/api/v1/customer-catalog/**")
+        http.securityMatcher("/api/v1/client/**")
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -120,6 +120,10 @@ public class SecurityConfig {
                 .permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/customers")
                 .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**")
+                .hasRole("CUSTOMER")
+                .requestMatchers("/api/v1/customer-catalog/**")
+                .denyAll()
                 .requestMatchers("/api/v1/customers/**", "/api/v1/loyalty/**")
                 .authenticated()
                 .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/password")
