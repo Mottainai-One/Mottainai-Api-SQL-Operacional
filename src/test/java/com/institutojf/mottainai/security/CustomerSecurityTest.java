@@ -5,6 +5,7 @@ import com.institutojf.mottainai.controller.CustomerController;
 import com.institutojf.mottainai.controller.CustomerProfileController;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
 import com.institutojf.mottainai.dto.response.CustomerTokenResponse;
+import com.institutojf.mottainai.dto.request.UpdateFirebaseCustomerProfileRequest;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.CustomerAuthRepository;
 import com.institutojf.mottainai.service.CustomerAuthenticationService;
@@ -34,6 +35,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({ CustomerController.class, CustomerAuthenticationController.class, CustomerProfileController.class })
@@ -138,6 +140,12 @@ class CustomerSecurityTest {
     @DisplayName("Should require Firebase authentication for app customer profile")
     void requiresFirebaseAuthenticationForClientProfile() throws Exception {
         mockMvc.perform(get("/api/v1/client/auth/profile")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/client/auth/profile").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Ana\",\"cpf\":\"12345678909\"}"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/client/auth/profile").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Ana\",\"marketingConsent\":false}"))
+            .andExpect(status().isUnauthorized());
         verifyNoInteractions(customerAuthenticationService);
     }
 
@@ -147,6 +155,38 @@ class CustomerSecurityTest {
         mockMvc.perform(get("/api/v1/client/auth/profile").with(jwt().jwt(token -> token.subject("firebase-uid"))))
             .andExpect(status().isOk());
         verify(customerAuthenticationService).profile(any());
+    }
+
+    @Test
+    @DisplayName("Should create the SQL profile for an authenticated Firebase customer")
+    void createsFirebaseCustomerProfile() throws Exception {
+        when(customerService.createFirebaseProfile(any(), eq("firebase-uid"), eq("ana@example.com")))
+            .thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
+                    null, null, true, false, null, null, null));
+
+        mockMvc.perform(post("/api/v1/client/auth/profile")
+                .with(jwt().jwt(token -> token.subject("firebase-uid").claim("email", "ana@example.com")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Ana\",\"cpf\":\"12345678909\"}"))
+            .andExpect(status().isCreated());
+
+        verify(customerService).createFirebaseProfile(any(), eq("firebase-uid"), eq("ana@example.com"));
+    }
+
+    @Test
+    @DisplayName("Should update only the authenticated Firebase customer's editable profile fields")
+    void updatesFirebaseCustomerProfile() throws Exception {
+        when(customerService.updateFirebaseProfile(any(), eq("firebase-uid")))
+            .thenReturn(new CustomerResponse(7, "Ana Silva", "***.456.789-**", "ana@example.com",
+                    "11999999999", null, true, true, null, null, null));
+
+        mockMvc.perform(put("/api/v1/client/auth/profile")
+                .with(jwt().jwt(token -> token.subject("firebase-uid")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Ana Silva\",\"phone\":\"11999999999\",\"marketingConsent\":true}"))
+            .andExpect(status().isOk());
+
+        verify(customerService).updateFirebaseProfile(any(), eq("firebase-uid"));
     }
 
 }

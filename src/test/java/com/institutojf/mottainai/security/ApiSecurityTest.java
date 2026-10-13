@@ -113,13 +113,16 @@ class ApiSecurityTest {
     }
 
     @Test
-    @DisplayName("Should require Firebase JWT authentication for customer catalog reads")
-    void shouldRequireFirebaseJwtForCustomerCatalog() throws Exception {
+    @DisplayName("Should require a Firebase-authenticated customer for customer catalog reads")
+    void shouldRequireFirebaseAuthenticationForCustomerCatalog() throws Exception {
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
                 .with(jwt().jwt(token -> token.subject("firebase-uid"))))
             .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -171,6 +174,12 @@ class ApiSecurityTest {
         @GetMapping
         public String read() {
             return "ok";
+        }
+
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() {
+            return "created";
         }
     }
 

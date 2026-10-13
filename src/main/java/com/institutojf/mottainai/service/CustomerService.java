@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -36,32 +37,10 @@ public class CustomerService {
     @Transactional
     public CustomerResponse create(CreateCustomerRequest request) {
         validatePassword(request.password());
-
-        if (customerRepository.existsByCpfAndDeletedAtIsNull(request.cpf())) {
-            throw new ConflictException("CPF is already registered");
-        }
-        if (customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(request.email())
-                || customerAuthRepository.findByLoginEmailIgnoreCase(request.email()).isPresent()) {
-            throw new ConflictException("Email is already registered");
-
-        }
+        ensureProfileIsAvailable(request.cpf(), request.email());
         LocalDateTime now = LocalDateTime.now();
-
-        Customer customer = new Customer();
-        customer.setFullName(request.fullName().trim());
-        customer.setCpf(request.cpf());
-        customer.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
-        customer.setPhone(normalize(request.phone()));
-        customer.setBirthDate(request.birthDate());
-        customer.setMarketingConsent(Boolean.TRUE.equals(request.marketingConsent()));
-        customer.setActive(true);
-        customer.setCreatedAt(now);
-        customer.setUpdatedAt(now);
-
-        if (request.address() != null) {
-            customer.setAddress(addressRepository.save(toAddress(request.address())));
-        }
-        customerRepository.save(customer);
+        Customer customer = createProfile(request.fullName(), request.cpf(), request.email(), request.phone(),
+                request.birthDate(), request.marketingConsent(), request.address(), null, now);
 
         CustomerAuth auth = new CustomerAuth();
         auth.setCustomer(customer);
@@ -72,15 +51,47 @@ public class CustomerService {
         auth.setUpdatedAt(now);
         customerAuthRepository.save(auth);
 
-        LoyaltyAccount account = new LoyaltyAccount();
-        account.setCustomer(customer);
-        account.setPointsBalance(0);
-        account.setJoinedAt(now);
-        account.setActive(true);
-        account.setUpdatedAt(now);
-        loyaltyAccountRepository.save(account);
-        auditLogRepository.record("customer", "INSERT", customer.getId().toString(), null, null,
-                Map.of("active", true));
+        return CustomerResponse.fromEntity(customer);
+    }
+
+    @Transactional
+    public CustomerResponse createFirebaseProfile(CreateFirebaseCustomerProfileRequest request,
+            String externalAuthUid, String email) {
+        if (externalAuthUid == null || externalAuthUid.isBlank() || externalAuthUid.length() > 150
+                || email == null || email.isBlank() || email.trim().length() > 150) {
+            throw new BusinessException("Firebase token must contain a valid subject and email");
+        }
+        var linkedCustomer = customerRepository.findByExternalAuthUid(externalAuthUid);
+        if (linkedCustomer.isPresent()) {
+            Customer customer = linkedCustomer.get();
+            if (Boolean.TRUE.equals(customer.getActive()) && customer.getDeletedAt() == null) {
+                return CustomerResponse.fromEntity(customer);
+            }
+            throw new ConflictException("Firebase identity is linked to an inactive customer");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        ensureProfileIsAvailable(request.cpf(), normalizedEmail);
+        Customer customer = createProfile(request.fullName(), request.cpf(), normalizedEmail, request.phone(),
+                request.birthDate(), request.marketingConsent(), request.address(), externalAuthUid,
+                LocalDateTime.now());
+        return CustomerResponse.fromEntity(customer);
+    }
+
+    @Transactional
+    public CustomerResponse updateFirebaseProfile(UpdateFirebaseCustomerProfileRequest request,
+            String externalAuthUid) {
+        Customer customer = customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(externalAuthUid)
+            .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        Map<String, Object> oldData = Map.of("full_name", customer.getFullName(),
+                "marketing_consent", customer.getMarketingConsent());
+        customer.setFullName(request.fullName().trim());
+        customer.setPhone(normalize(request.phone()));
+        customer.setMarketingConsent(request.marketingConsent());
+        customer.setUpdatedAt(LocalDateTime.now());
+        customerRepository.save(customer);
+        auditLogRepository.record("customer", "UPDATE", customer.getId().toString(), null, oldData,
+                Map.of("full_name", customer.getFullName(), "marketing_consent", customer.getMarketingConsent()));
         return CustomerResponse.fromEntity(customer);
     }
 
@@ -247,6 +258,47 @@ public class CustomerService {
         address.setCity(request.city().trim());
         address.setState(request.state().trim());
         return address;
+    }
+
+    private void ensureProfileIsAvailable(String cpf, String email) {
+        if (customerRepository.existsByCpfAndDeletedAtIsNull(cpf)) {
+            throw new ConflictException("CPF is already registered");
+        }
+        if (customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(email)
+                || customerAuthRepository.findByLoginEmailIgnoreCase(email).isPresent()) {
+            throw new ConflictException("Email is already registered");
+        }
+    }
+
+    private Customer createProfile(String fullName, String cpf, String email, String phone, LocalDate birthDate,
+            Boolean marketingConsent, CreateAddressRequest addressRequest, String externalAuthUid,
+            LocalDateTime now) {
+        Customer customer = new Customer();
+        customer.setFullName(fullName.trim());
+        customer.setCpf(cpf);
+        customer.setEmail(email.trim().toLowerCase(Locale.ROOT));
+        customer.setPhone(normalize(phone));
+        customer.setBirthDate(birthDate);
+        customer.setMarketingConsent(Boolean.TRUE.equals(marketingConsent));
+        customer.setExternalAuthUid(externalAuthUid);
+        customer.setActive(true);
+        customer.setCreatedAt(now);
+        customer.setUpdatedAt(now);
+        if (addressRequest != null) {
+            customer.setAddress(addressRepository.save(toAddress(addressRequest)));
+        }
+        customerRepository.save(customer);
+
+        LoyaltyAccount account = new LoyaltyAccount();
+        account.setCustomer(customer);
+        account.setPointsBalance(0);
+        account.setJoinedAt(now);
+        account.setActive(true);
+        account.setUpdatedAt(now);
+        loyaltyAccountRepository.save(account);
+        auditLogRepository.record("customer", "INSERT", customer.getId().toString(), null, null,
+                Map.of("active", true));
+        return customer;
     }
 
     private String normalize(String value) {
