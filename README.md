@@ -1,6 +1,6 @@
 # Mottainai Backend
 
-API REST do Mottainai para gestão de catálogo, fornecedores, empresas, lojas, estoque, alertas, promoções e fidelidade. É uma aplicação Spring Boot com PostgreSQL, Flyway e autenticação por JWT para a equipe e Firebase para o cliente no módulo de fidelidade.
+API REST do Mottainai para gestão de catálogo, fornecedores, empresas, lojas, estoque, alertas, promoções e fidelidade. É uma aplicação Spring Boot com PostgreSQL, autenticação JWT para a equipe e Firebase para o app cliente (perfil, catálogo e fidelidade).
 
 ## Requisitos
 
@@ -15,7 +15,7 @@ DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
 JWT_SECRET=<segredo-Base64-com-pelo-menos-32-bytes>
 CORS_ALLOWED_ORIGINS=http://localhost:3000
-FIREBASE_PROJECT_ID=seu-projeto-firebase
+FIREBASE_PROJECT_ID=mottainai-cliente
 ```
 
 `FIREBASE_PROJECT_ID` é necessário apenas para autenticar chamadas em `/api/v1/client/**`. O JWT interno usa `JWT_SECRET` e o Firebase usa as chaves públicas oficiais para validar tokens de clientes.
@@ -25,6 +25,8 @@ FIREBASE_PROJECT_ID=seu-projeto-firebase
 A configuração padrão mantém o Flyway desabilitado e valida o mapeamento JPA (`spring.jpa.hibernate.ddl-auto=validate`). O provisionamento e as alterações estruturais pertencem à equipe de dados, no repositório `Mottainai-Banco-Operacional`, branch `develop`, diretório `database/operational`.
 
 As migrations V1–V9 são históricas e não representam o schema operacional completo. A V10 depende das tabelas operacionais, de colunas usadas nas views e da role `mottainai_api`; não deve ser aplicada sobre um banco vazio provisionado apenas pelas migrations antigas. O perfil `local` aponta para `classpath:db/migration-local`, atualmente sem scripts, e não aplica a V10 de `db/migration`.
+
+A integração do app cliente também depende de `mottainai.customer.external_auth_uid`, anulável para cadastros SQL antigos e único entre UIDs Firebase vinculados. Essa coluna não é criada pela API em runtime: confirme ou versione a alteração no repositório `Mottainai-Banco-Operacional` antes de conectar o ambiente de teste.
 
 Antes de publicar a API, a equipe de dados deve disponibilizar o schema compatível e as funções/permissões acordadas. Só depois devem ser aplicadas as views, índices e funções necessárias aos repositories. A inicialização da API valida o resultado; ativar Flyway não substitui esse provisionamento. Os ajustes de RLS, autenticação e sessões precisam ser validados em PostgreSQL com a role real da API, sem usar proprietário, superusuário ou `BYPASSRLS`.
 
@@ -62,7 +64,7 @@ As rotas operacionais exigem JWT da API. Escritas exigem `ADMINISTRATOR` ou `MAN
 
 ### Cliente (fidelidade)
 
-As rotas em `/api/v1/client/loyalty/**` exigem um Firebase ID token. O `sub` do token deve corresponder a `customer.external_auth_uid` de um cliente ativo.
+As rotas em `/api/v1/client/**` e `/api/v1/customer-catalog/**` exigem um Firebase ID token. O `sub` do token deve corresponder a `customer.external_auth_uid` para operações que dependem de um cliente SQL ativo; o catálogo só exige a identidade Firebase válida.
 
 ```http
 Authorization: Bearer <firebase-id-token>
@@ -70,7 +72,9 @@ Authorization: Bearer <firebase-id-token>
 
 Esse fluxo permanece Firebase e identifica o cliente pelo UID, sem procurar outro cliente por e-mail caso o UID não exista.
 
-O perfil do app está em `GET /api/v1/client/auth/profile`, com CPF mascarado. A renovação do ID token e o logout no dispositivo são feitos pelo SDK Firebase, sem enviar refresh tokens ao backend. `signOut()` encerra a sessão no dispositivo; não revoga imediatamente um ID token já emitido. Veja a [gestão de sessões Firebase](https://firebase.google.com/docs/auth/admin/manage-sessions).
+O app cria o perfil SQL com `POST /api/v1/client/auth/profile`, consulta-o em `GET /api/v1/client/auth/profile` e atualiza nome, telefone e consentimento com `PUT`. O cadastro usa o e-mail do token Firebase e associa o UID ao cliente SQL; CPF ou e-mail já vinculados a outro cadastro resultam em conflito. A renovação do ID token e o logout no dispositivo são feitos pelo SDK Firebase, sem enviar refresh tokens ao backend. `signOut()` encerra a sessão no dispositivo; não revoga imediatamente um ID token já emitido. Veja a [gestão de sessões Firebase](https://firebase.google.com/docs/auth/admin/manage-sessions).
+
+O catálogo público para clientes possui `GET /api/v1/customer-catalog/stores`, `GET /stores/{id}`, `GET /promotions` e `GET /promotions/{id}` sob o prefixo `/api/v1/customer-catalog`. As listagens aceitam `page` e `size`; lojas e promoções aceitam `query`, e promoções também aceitam `storeId`. O filtro geográfico de lojas aceita `latitude`, `longitude` e `radiusKm` juntos. Promoções retornadas são aprovadas, vigentes e ligadas a lojas ativas; imagens só devem ser exibidas quando o contrato fornecer uma URL.
 
 As rotas documentadas `/api/v1/customers/auth/**` usam a conta SQL em `customer_auth` e emitem JWT interno; esse JWT não é aceito nas rotas Firebase de `/api/v1/client/**`. O perfil SQL está em `GET /api/v1/customers/auth/profile`, exclusivo de `CUSTOMER`. O fluxo SQL continua emitindo somente access token; não deve substituir a sessão Firebase do app.
 
@@ -84,6 +88,8 @@ As rotas documentadas `/api/v1/customers/auth/**` usam a conta SQL em `customer_
 | Histórico de funcionário | `GET /api/v1/employees/{id}/audit-logs`, `GET /api/v1/employees/{id}/shifts`, `GET /api/v1/employees/{id}/cancel-request` |
 | Estoque | `GET, POST /api/v1/inventory`; `GET, PUT, DELETE /api/v1/inventory/{id}`; `GET /api/v1/inventory/barcode/{barcode}`; `GET /api/v1/inventory/expiring`; `GET, POST /api/v1/inventory/{id}/movements` |
 | Contagens | `GET, POST /api/v1/inventory-counts`; `GET /api/v1/inventory-counts/{id}`; `POST /api/v1/inventory-counts/{id}/items`; `PUT, DELETE /api/v1/inventory-counts/{id}/items/{itemId}`; `POST /api/v1/inventory-counts/{id}/finish` |
+| Perfil cliente | `GET, POST, PUT /api/v1/client/auth/profile` |
+| Catálogo cliente | `GET /api/v1/customer-catalog/stores`, `/stores/{id}`, `/promotions`, `/promotions/{id}` |
 | Fidelidade do cliente | `GET /api/v1/client/loyalty/balance`, `GET /api/v1/client/loyalty/transactions`, `POST /api/v1/client/loyalty/redeem` |
 
 Esta tabela destaca os contratos de integração afetados pela revisão. Consulte `/api-docs` ou o Swagger para a lista completa de rotas, DTOs, parâmetros e códigos HTTP; nem toda listagem possui paginação.
