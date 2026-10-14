@@ -23,6 +23,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -39,7 +41,9 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtIssuerAuthenticationManagerResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
@@ -52,8 +56,9 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -143,9 +148,8 @@ public class SecurityConfig {
                 .hasAnyRole("ADMINISTRATOR", "MANAGER")
                 .anyRequest()
                 .authenticated())
-            .oauth2ResourceServer(
-                    oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
-            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository),
+            .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver()))
+            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties),
                     BearerTokenAuthenticationFilter.class);
         return http.build();
     }
@@ -208,6 +212,32 @@ public class SecurityConfig {
         JwtAuthenticationConverter authenticationConverter = new JwtAuthenticationConverter();
         authenticationConverter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
         return authenticationConverter;
+    }
+
+    private JwtIssuerAuthenticationManagerResolver staffAuthenticationManagerResolver() {
+        Map<String, AuthenticationManager> managers = new HashMap<>();
+        managers.put(jwtProperties.issuer(), jwtAuthenticationManager(jwtDecoder(), jwtAuthenticationConverter()));
+        managers.put(firebaseIssuer(), jwtAuthenticationManager(firebaseJwtDecoder(), firebaseStaffAuthenticationConverter()));
+        return new JwtIssuerAuthenticationManagerResolver(managers::get);
+    }
+
+    private AuthenticationManager jwtAuthenticationManager(
+            JwtDecoder decoder, JwtAuthenticationConverter converter) {
+        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);
+        provider.setJwtAuthenticationConverter(converter);
+        return new ProviderManager(provider);
+    }
+
+    private JwtAuthenticationConverter firebaseStaffAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setPrincipalClaimName("email");
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> FirebaseStaffRole.authoritiesFor(jwt.getClaimAsString("role"))
+                .stream().map(role -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + role)).toList());
+        return converter;
+    }
+
+    private String firebaseIssuer() {
+        return "https://securetoken.google.com/" + firebaseProperties.projectId();
     }
 
     private SecretKey jwtSecretKey() {
