@@ -162,7 +162,7 @@ class CustomerSecurityTest {
     void createsFirebaseCustomerProfile() throws Exception {
         when(customerService.createFirebaseProfile(any(), eq("firebase-uid"), eq("ana@example.com")))
             .thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
-                    null, null, true, false, null, null, null));
+                null, null, true, false, null, null, null));
 
         mockMvc.perform(post("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid").claim("email", "ana@example.com")))
@@ -178,7 +178,7 @@ class CustomerSecurityTest {
     void updatesFirebaseCustomerProfile() throws Exception {
         when(customerService.updateFirebaseProfile(any(), eq("firebase-uid")))
             .thenReturn(new CustomerResponse(7, "Ana Silva", "***.456.789-**", "ana@example.com",
-                    "11999999999", null, true, true, null, null, null));
+                "11999999999", null, true, true, null, null, null));
 
         mockMvc.perform(put("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid")))

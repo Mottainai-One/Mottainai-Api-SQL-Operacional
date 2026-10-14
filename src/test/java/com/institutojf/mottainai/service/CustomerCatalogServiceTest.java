@@ -10,6 +10,7 @@ import com.institutojf.mottainai.model.enums.PromotionStatus;
 import com.institutojf.mottainai.repository.PromotionItemRepository;
 import com.institutojf.mottainai.repository.PromotionRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,12 +36,20 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerCatalogServiceTest {
-    @Mock private RetailStoreRepository storeRepository;
-    @Mock private PromotionRepository promotionRepository;
-    @Mock private PromotionItemRepository itemRepository;
-    @InjectMocks private CustomerCatalogService service;
+    @Mock
+    private RetailStoreRepository storeRepository;
+
+    @Mock
+    private PromotionRepository promotionRepository;
+
+    @Mock
+    private PromotionItemRepository itemRepository;
+
+    @InjectMocks
+    private CustomerCatalogService service;
 
     @Test
+    @DisplayName("Should include stores without coordinates in the general listing")
     void storesWithoutLocationRemainInGeneralListing() {
         RetailStore store = store();
         when(storeRepository.findCustomerStores(eq("mercado"), any(Pageable.class)))
@@ -54,6 +63,7 @@ class CustomerCatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Should reject incomplete or out-of-range geographic filters")
     void geographicSearchRequiresCompleteValidCoordinates() {
         assertThrows(ResponseStatusException.class,
             () -> service.stores(0, 20, null, -23.5, null, 10.0));
@@ -62,6 +72,7 @@ class CustomerCatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Should include only available promotion items in the customer response")
     void promotionResponseContainsOnlyAvailableItemsReturnedByRepository() {
         Promotion promotion = new Promotion();
         promotion.setId(9);
@@ -94,6 +105,7 @@ class CustomerCatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Should pass the store filter and requested page to the repository")
     void promotionSearchPassesStoreFilterAndRequestedPageToRepository() {
         when(promotionRepository.findCustomerPromotions(eq(PromotionStatus.APPROVED),
             any(LocalDateTime.class), eq(42), eq("feijao"), eq(PageRequest.of(2, 10))))
@@ -106,6 +118,7 @@ class CustomerCatalogServiceTest {
     }
 
     @Test
+    @DisplayName("Should return not found when a promotion is unavailable")
     void unavailablePromotionIsNotExposedByDetail() {
         when(promotionRepository.findCustomerPromotion(eq(9), eq(PromotionStatus.APPROVED),
             any(LocalDateTime.class))).thenReturn(Optional.empty());

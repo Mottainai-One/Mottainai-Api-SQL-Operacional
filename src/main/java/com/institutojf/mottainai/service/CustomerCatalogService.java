@@ -1,5 +1,6 @@
 package com.institutojf.mottainai.service;
 
+import com.institutojf.mottainai.dto.response.AddressResponse;
 import com.institutojf.mottainai.dto.response.CustomerCatalogPromotionResponse;
 import com.institutojf.mottainai.dto.response.CustomerCatalogStoreResponse;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
@@ -94,7 +95,7 @@ public class CustomerCatalogService {
     private CustomerCatalogStoreResponse storeResponse(RetailStore store) {
         var address = store.getAddress();
         return new CustomerCatalogStoreResponse(store.getId(), store.getName(),
-            new CustomerCatalogStoreResponse.Address(address.getZipCode(), address.getStreet(),
+            new AddressResponse(address.getId(), address.getZipCode(), address.getStreet(),
                 address.getNumber(), address.getComplement(), address.getNeighborhood(),
                 address.getCity(), address.getState()), store.getLatitude(), store.getLongitude());
     }

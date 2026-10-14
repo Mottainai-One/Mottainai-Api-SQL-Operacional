@@ -51,6 +51,7 @@ Exemplo de loja:
   "id": 3,
   "name": "Mercado Centro",
   "address": {
+    "id": 11,
     "zipCode": "01001000", "street": "Rua Um", "number": "10",
     "complement": null, "neighborhood": "Centro", "city": "São Paulo", "state": "SP"
   },
@@ -71,6 +72,7 @@ Exemplo de promoção:
   "promotionType": "SPECIAL_PRICE", "startsAt": "2026-10-09T09:00:00",
   "endsAt": "2026-10-10T18:00:00",
   "store": { "id": 3, "name": "Mercado Centro", "address": {
+    "id": 11,
     "zipCode": "01001000", "street": "Rua Um", "number": "10",
     "complement": null, "neighborhood": "Centro", "city": "São Paulo", "state": "SP"
   }, "latitude": -23.550520, "longitude": -46.633308 },

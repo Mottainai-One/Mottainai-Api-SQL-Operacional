@@ -105,8 +105,8 @@ class CustomerServiceTest {
         when(customerRepository.findByExternalAuthUid("firebase-uid")).thenReturn(Optional.of(existing));
 
         var response = service.createFirebaseProfile(
-                new CreateFirebaseCustomerProfileRequest("Ignored", "12345678909", null, null, false, null),
-                "firebase-uid", "ana@example.com");
+            new CreateFirebaseCustomerProfileRequest("Ignored", "12345678909", null, null, false, null),
+            "firebase-uid", "ana@example.com");
 
         assertEquals(8, response.id());
         assertEquals("Ana", response.fullName());

@@ -10,8 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,15 +46,17 @@ public class CustomerProfileController implements CustomerProfileControllerApi {
     @Override
     @PostMapping("/client/auth/profile")
     @ResponseStatus(HttpStatus.CREATED)
-    public CustomerResponse createClientProfile(@Valid @RequestBody CreateFirebaseCustomerProfileRequest request,
-            @AuthenticationPrincipal Jwt token) {
+    public CustomerResponse createClientProfile(
+        @Valid @RequestBody CreateFirebaseCustomerProfileRequest request,
+        @AuthenticationPrincipal Jwt token) {
         return customerService.createFirebaseProfile(request, token.getSubject(), token.getClaimAsString("email"));
     }
 
     @Override
     @PutMapping("/client/auth/profile")
-    public CustomerResponse updateClientProfile(@Valid @RequestBody UpdateFirebaseCustomerProfileRequest request,
-            @AuthenticationPrincipal Jwt token) {
+    public CustomerResponse updateClientProfile(
+        @Valid @RequestBody UpdateFirebaseCustomerProfileRequest request,
+        @AuthenticationPrincipal Jwt token) {
         return customerService.updateFirebaseProfile(request, token.getSubject());
     }
 
