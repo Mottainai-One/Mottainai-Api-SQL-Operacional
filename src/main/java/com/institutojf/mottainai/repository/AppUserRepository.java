@@ -44,6 +44,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
     @EntityGraph(attributePaths = { "employee", "employee.role" })
     Optional<AppUser> findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(String email);
 
+    boolean existsByFirebaseUid(String firebaseUid);
+
     @EntityGraph(attributePaths = { "employee", "employee.role" })
     Optional<AppUser> findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(String cpf);
 

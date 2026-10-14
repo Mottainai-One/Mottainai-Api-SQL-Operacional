@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -283,8 +284,7 @@ public class EmployeeService {
 
     private void requireActivityAccess(Integer employeeId, String requestingUserEmail) {
         AppUser requester = requestingUser(requestingUserEmail);
-        String roleName = requester.getEmployee().getRole().getName();
-        if (!"ADMINISTRATOR".equalsIgnoreCase(roleName) && !"MANAGER".equalsIgnoreCase(roleName)) {
+        if (!hasRole("ADMINISTRATOR") && !hasRole("MANAGER")) {
             throw new ResourceNotFoundException("Employee not found");
         }
         target(employeeId, requester, false);
@@ -302,8 +302,8 @@ public class EmployeeService {
         }
         Integer requestingUserCompany = requestingUser.getEmployee().getStore().getCompany().getId();
         Integer targetCompany = found.getEmployee().getStore().getCompany().getId();
-        boolean administrator = "ADMINISTRATOR".equalsIgnoreCase(requestingUser.getEmployee().getRole().getName());
-        boolean manager = "MANAGER".equalsIgnoreCase(requestingUser.getEmployee().getRole().getName());
+        boolean administrator = hasRole("ADMINISTRATOR");
+        boolean manager = hasRole("MANAGER");
         boolean sameStore = requestingUser.getEmployee()
             .getStore()
             .getId()
@@ -314,6 +314,12 @@ public class EmployeeService {
             throw new ResourceNotFoundException("Employee not found");
         }
         return found;
+    }
+
+    private boolean hasRole(String role) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> ("ROLE_" + role).equals(authority.getAuthority()));
     }
 
     private EmployeeRole role(Integer roleId) {

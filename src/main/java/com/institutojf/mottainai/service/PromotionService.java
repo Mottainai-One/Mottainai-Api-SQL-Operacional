@@ -172,7 +172,8 @@ public class PromotionService {
 
     private AppUser requireRole(Authentication authentication, String roleName) {
         AppUser actor = inventoryAccess.currentUser(authentication);
-        if (!roleName.equalsIgnoreCase(actor.getEmployee().getRole().getName())) {
+        if (authentication.getAuthorities().stream()
+                .noneMatch(authority -> ("ROLE_" + roleName).equals(authority.getAuthority()))) {
             throw new BusinessException(
                     roleName.substring(0, 1) + roleName.substring(1).toLowerCase() + " access is required");
         }

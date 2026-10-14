@@ -3,6 +3,7 @@ package com.institutojf.mottainai.service;
 import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
+import com.institutojf.mottainai.security.FirebaseStaffRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -62,6 +63,42 @@ public class RlsContextService {
         return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(jwt.getSubject())
             .filter(user -> isCurrentUser(user, jwt, sessionId))
             .isPresent();
+    }
+
+    @Transactional
+    public boolean validateFirebaseStaffToken(Jwt jwt) {
+        String firebaseUid = jwt.getSubject();
+        String email = jwt.getClaimAsString("email");
+        if (firebaseUid == null || firebaseUid.isBlank() || email == null || email.isBlank()
+                || !Boolean.TRUE.equals(jwt.getClaim("email_verified"))
+                || FirebaseStaffRole.authoritiesFor(jwt.getClaimAsString("role")).isEmpty()
+                || !bootstrapByEmail(email)) {
+            return false;
+        }
+
+        AppUser user = appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(email)
+                .orElse(null);
+        if (user == null || user.getEmployee() == null || !Boolean.TRUE.equals(user.getEmployee().getActive())
+                || user.getEmployee().getDeletedAt() != null || user.getEmployee().getRole() == null
+                || !Boolean.TRUE.equals(user.getEmployee().getRole().getActive())
+                || user.getEmployee().getRole().getDeletedAt() != null
+                || !Boolean.TRUE.equals(user.getEmployee().getStore().getActive())
+                || user.getEmployee().getStore().getDeletedAt() != null
+                || !Boolean.TRUE.equals(user.getEmployee().getStore().getCompany().getActive())
+                || user.getEmployee().getStore().getCompany().getDeletedAt() != null) {
+            return false;
+        }
+
+        if (user.getFirebaseUid() != null) {
+            return user.getFirebaseUid().equals(firebaseUid);
+        }
+        if (appUserRepository.existsByFirebaseUid(firebaseUid)) {
+            return false;
+        }
+
+        user.setFirebaseUid(firebaseUid);
+        appUserRepository.saveAndFlush(user);
+        return true;
     }
 
     // A função restrita do banco valida a identidade e define empresa e loja

@@ -36,7 +36,7 @@ public class InventoryAccess {
     public Integer resolveStoreId(Authentication authentication, Integer requestedStoreId) {
         AppUser user = currentUser(authentication);
         Integer userStoreId = user.getEmployee().getStore().getId();
-        if (isAdministrator(user)) {
+        if (hasRole(authentication, "ADMINISTRATOR")) {
             if (requestedStoreId == null) {
                 throw new BusinessException("Store id is required for administrators");
             }
@@ -58,13 +58,15 @@ public class InventoryAccess {
     }
 
     public void requireAdministrator(Authentication authentication) {
-        if (!isAdministrator(currentUser(authentication))) {
+        currentUser(authentication);
+        if (!hasRole(authentication, "ADMINISTRATOR")) {
             throw new BusinessException("Administrator access is required");
         }
     }
 
-    private boolean isAdministrator(AppUser user) {
-        return "ADMINISTRATOR".equalsIgnoreCase(user.getEmployee().getRole().getName());
+    private boolean hasRole(Authentication authentication, String role) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> ("ROLE_" + role).equals(authority.getAuthority()));
     }
 
 }

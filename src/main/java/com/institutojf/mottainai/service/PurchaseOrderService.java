@@ -138,8 +138,10 @@ public class PurchaseOrderService {
 
     private AppUser requirePurchaseRole(Authentication authentication) {
         AppUser actor = inventoryAccess.currentUser(authentication);
-        String role = actor.getEmployee().getRole().getName();
-        if (!"ADMINISTRATOR".equalsIgnoreCase(role) && !"MANAGER".equalsIgnoreCase(role)) {
+        boolean allowed = authentication.getAuthorities().stream().anyMatch(authority ->
+                "ROLE_ADMINISTRATOR".equals(authority.getAuthority())
+                        || "ROLE_MANAGER".equals(authority.getAuthority()));
+        if (!allowed) {
             throw new BusinessException("Administrator or manager access is required");
         }
         return actor;
