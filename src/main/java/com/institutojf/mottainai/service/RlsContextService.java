@@ -95,10 +95,14 @@ public class RlsContextService {
         if (appUserRepository.existsByFirebaseUid(firebaseUid)) {
             return false;
         }
+        int linked = appUserRepository.linkFirebaseUidIfAbsent(user.getId(), firebaseUid);
+        if (linked == 1) {
+            user.setFirebaseUid(firebaseUid);
+            return true;
+        }
 
-        user.setFirebaseUid(firebaseUid);
-        appUserRepository.saveAndFlush(user);
-        return true;
+        // Another request may have completed the same first-time link concurrently.
+        return appUserRepository.existsByIdAndFirebaseUid(user.getId(), firebaseUid);
     }
 
     // A função restrita do banco valida a identidade e define empresa e loja
