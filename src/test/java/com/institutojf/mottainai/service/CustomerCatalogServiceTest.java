@@ -16,7 +16,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -100,6 +102,19 @@ class CustomerCatalogServiceTest {
         assertEquals(new BigDecimal("9.90"), result.items().getFirst().promotionalPrice());
         verify(promotionRepository).findCustomerPromotions(eq(PromotionStatus.APPROVED),
             any(LocalDateTime.class), eq(0), eq(""), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should pass the store filter and requested page to the repository")
+    void promotionSearchPassesStoreFilterAndRequestedPageToRepository() {
+        when(promotionRepository.findCustomerPromotions(eq(PromotionStatus.APPROVED),
+            any(LocalDateTime.class), eq(42), eq("feijao"), eq(PageRequest.of(2, 10))))
+            .thenReturn(Page.empty(PageRequest.of(2, 10)));
+
+        service.promotions(2, 10, 42, " feijao ");
+
+        verify(promotionRepository).findCustomerPromotions(eq(PromotionStatus.APPROVED),
+            any(LocalDateTime.class), eq(42), eq("feijao"), eq(PageRequest.of(2, 10)));
     }
 
     @Test

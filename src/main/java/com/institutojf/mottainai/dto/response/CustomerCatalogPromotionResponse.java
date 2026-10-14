@@ -14,6 +14,7 @@ public record CustomerCatalogPromotionResponse(
     CustomerCatalogStoreResponse store,
     List<Item> items
 ) {
+    // Keep the customer contract minimal; PromotionItemResponse also exposes operational metadata.
     public record Item(
         Integer id,
         Integer productId,

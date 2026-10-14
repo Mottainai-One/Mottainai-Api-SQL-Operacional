@@ -94,11 +94,14 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain clientSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/api/v1/client/**")
+        http.securityMatcher("/api/v1/client/**", "/api/v1/customer-catalog/**")
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**").authenticated()
+                .requestMatchers("/api/v1/customer-catalog/**").denyAll()
+                .anyRequest().authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(firebaseJwtDecoder())));
         return http.build();
     }

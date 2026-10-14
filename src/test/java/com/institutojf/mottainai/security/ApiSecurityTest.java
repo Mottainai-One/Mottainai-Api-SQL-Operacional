@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -114,23 +113,15 @@ class ApiSecurityTest {
     }
 
     @Test
-    @DisplayName("Should require an API customer JWT for customer catalog reads")
-    void shouldRequireCustomerRoleForCustomerCatalog() throws Exception {
+    @DisplayName("Should require a Firebase-authenticated customer for customer catalog reads")
+    void shouldRequireFirebaseAuthenticationForCustomerCatalog() throws Exception {
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
-                .with(jwt().jwt(token -> token.subject("cliente@example.com")
-                    .claim("roles", List.of("CUSTOMER")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
             .andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
-                .with(jwt().jwt(token -> token.claim("roles", List.of("MANAGER")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MANAGER"))))
-            .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/customer-catalog/security-probe")
-                .with(jwt().jwt(token -> token.subject("cliente@example.com")
-                    .claim("roles", List.of("CUSTOMER")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
             .andExpect(status().isForbidden());
     }
 
