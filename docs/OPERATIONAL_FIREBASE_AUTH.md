@@ -18,7 +18,18 @@ The app's `storeID` claim is not used to grant data access. The API resolves the
 
 The employee must already exist as an active `app_user` linked to an active employee, store, and company, with the same email as the verified Firebase account. On the first authorized request, the API stores the verified Firebase UID in `app_user.firebase_uid`. Later requests require both the same UID and email match. One Firebase UID can link to only one staff account.
 
-Before deploying the API, apply `V11__link_firebase_uids_to_staff.sql` to the relational database. Set `FIREBASE_PROJECT_ID` in the API environment to the Firebase project's **Project ID**. Do not put service-account credentials or private keys in the app or repository; the API verifies tokens using Google's published signing keys.
+Before deploying the API, have the database owner apply the following SQL to the relational database:
+
+```sql
+ALTER TABLE mottainai.app_user
+    ADD COLUMN firebase_uid VARCHAR(128);
+
+CREATE UNIQUE INDEX uq_app_user_firebase_uid
+    ON mottainai.app_user (firebase_uid)
+    WHERE firebase_uid IS NOT NULL;
+```
+
+Set `FIREBASE_PROJECT_ID` in the API environment to the Firebase project's **Project ID**. Do not put service-account credentials or private keys in the app or repository; the API verifies tokens using Google's published signing keys.
 
 Firebase custom-claim changes become effective for API requests when the client refreshes its ID token; after changing a staff role, force an ID-token refresh in the mobile app before retrying a protected action.
 
