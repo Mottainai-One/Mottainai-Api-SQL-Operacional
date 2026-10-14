@@ -33,10 +33,6 @@ public class StaffAccessFilter extends OncePerRequestFilter {
         this.firebaseIssuer = "https://securetoken.google.com/" + firebaseProperties.projectId();
     }
 
-    public StaffAccessFilter(RlsContextService rlsContextService, CustomerAuthRepository customerAuthRepository) {
-        this(rlsContextService, customerAuthRepository, new FirebaseProperties(""));
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
