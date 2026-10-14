@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -37,8 +39,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({ ApiSecurityTest.SecurityTestController.class, EmployeeController.class })
-@Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class })
+@WebMvcTest({ ApiSecurityTest.SecurityTestController.class, ApiSecurityTest.CatalogSecurityTestController.class,
+        EmployeeController.class })
+@Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class,
+        ApiSecurityTest.CatalogSecurityTestController.class })
 @TestPropertySource(properties = { "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60",
         "security.cors.allowed-origins=https://app.example" })
@@ -110,6 +114,27 @@ class ApiSecurityTest {
     }
 
     @Test
+    @DisplayName("Should require an API customer JWT for customer catalog reads")
+    void shouldRequireCustomerRoleForCustomerCatalog() throws Exception {
+        mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.subject("cliente@example.com")
+                    .claim("roles", List.of("CUSTOMER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.claim("roles", List.of("MANAGER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MANAGER"))))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.subject("cliente@example.com")
+                    .claim("roles", List.of("CUSTOMER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Should proxy the secured employee controller with CGLIB")
     void shouldProxyEmployeeControllerWithCglib() {
         assertTrue(AopUtils.isCglibProxy(employeeController));
@@ -149,6 +174,21 @@ class ApiSecurityTest {
         @PatchMapping
         public String update() {
             return "updated";
+        }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/customer-catalog/security-probe")
+    static class CatalogSecurityTestController {
+        @GetMapping
+        public String read() {
+            return "ok";
+        }
+
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() {
+            return "created";
         }
     }
 
