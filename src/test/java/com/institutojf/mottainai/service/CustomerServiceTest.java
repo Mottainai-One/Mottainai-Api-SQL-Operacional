@@ -63,6 +63,11 @@ class CustomerServiceTest {
             return customer;
         });
         assertEquals(7, service.create(request).id());
+        verify(customerRepository).save(argThat(customer ->
+                ProtectedDataToken.customerName(request.fullName()).equals(customer.getFullName())
+                    && ProtectedDataToken.cpf(request.cpf()).equals(customer.getCpf())
+                    && ProtectedDataToken.email(request.email()).equals(customer.getEmail())
+                    && customer.getBirthYear() == null));
         verify(customerAuthRepository).save(argThat(auth -> auth.getCustomer().getId().equals(7)
                 && auth.getLoginEmail().equals(ProtectedDataToken.email(request.email()))
                 && auth.getPasswordHash().equals("hash") && auth.getActive()));

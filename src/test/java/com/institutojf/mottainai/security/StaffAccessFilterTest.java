@@ -41,6 +41,9 @@ class StaffAccessFilterTest {
     @Mock
     private CustomerAuthRepository customerAuthRepository;
 
+    @Mock
+    private FirebaseProperties firebaseProperties;
+
     @InjectMocks
     private StaffAccessFilter filter;
 
@@ -73,6 +76,26 @@ class StaffAccessFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, chain);
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Should validate an operational Firebase staff token")
+    void shouldAllowValidFirebaseStaffSession() throws Exception {
+        when(firebaseProperties.projectId()).thenReturn("mottainai-operational");
+        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties);
+        Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
+                Map.of("sub", "staff-uid", "email", "operator@mottainai.com",
+                        "iss", "https://securetoken.google.com/mottainai-operational"));
+        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+        when(rlsContextService.validateFirebaseStaffToken(jwt)).thenReturn(true);
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, chain);
+
+        verify(rlsContextService).validateFirebaseStaffToken(jwt);
         verify(chain).doFilter(request, response);
     }
 
