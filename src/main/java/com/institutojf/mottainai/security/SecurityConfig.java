@@ -1,7 +1,6 @@
 package com.institutojf.mottainai.security;
 
 import com.institutojf.mottainai.repository.AppUserRepository;
-import com.institutojf.mottainai.repository.CustomerAuthRepository;
 import com.institutojf.mottainai.service.RlsContextService;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -98,46 +97,22 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain clientSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/api/v1/client/**", "/api/v1/customer-catalog/**")
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(Customizer.withDefaults())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**").authenticated()
-                .requestMatchers("/api/v1/customer-catalog/**").denyAll()
-                .anyRequest().authenticated())
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(firebaseJwtDecoder())));
-        return http.build();
-    }
-
-    @Bean
-    @Order(2)
-    public SecurityFilterChain staffSecurityFilterChain(HttpSecurity http, RlsContextService rlsContextService,
-            CustomerAuthRepository customerAuthRepository) throws Exception {
+    public SecurityFilterChain staffSecurityFilterChain(HttpSecurity http, RlsContextService rlsContextService) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/v1/customers/auth/profile")
-                .hasRole("CUSTOMER")
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/password-recovery",
                         "/api/v1/auth/password-reset", "/api/v1/auth/password-reset/validate",
-                        "/api/v1/customers/auth/**", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+                        "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
                         "/actuator/health")
                 .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/customers")
-                .permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**")
-                .hasRole("CUSTOMER")
-                .requestMatchers("/api/v1/customer-catalog/**")
-                .denyAll()
                 .requestMatchers("/api/v1/customers/**", "/api/v1/loyalty/**")
                 .authenticated()
                 .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/password")
                 .authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/**")
-                .access(new WebExpressionAuthorizationManager("isAuthenticated() and !hasRole('CUSTOMER')"))
+                .authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/**")
                 .hasAnyRole("ADMINISTRATOR", "MANAGER")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/**")
@@ -149,7 +124,7 @@ public class SecurityConfig {
                 .anyRequest()
                 .authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver()))
-            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties),
+            .addFilterAfter(new StaffAccessFilter(rlsContextService, firebaseProperties),
                     BearerTokenAuthenticationFilter.class);
         return http.build();
     }

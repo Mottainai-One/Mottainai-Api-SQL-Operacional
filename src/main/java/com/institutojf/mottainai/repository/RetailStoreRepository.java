@@ -4,8 +4,6 @@ import com.institutojf.mottainai.model.RetailStore;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,20 +17,6 @@ public interface RetailStoreRepository extends JpaRepository<RetailStore, Intege
     long countByCompany_IdAndActiveTrueAndDeletedAtIsNull(Integer companyId);
 
     Page<RetailStore> findAllByActiveTrueAndDeletedAtIsNull(Pageable pageable);
-
-    @Query("select s from RetailStore s where s.active = true and s.deletedAt is null "
-        + "and (:query = '' or lower(s.name) like lower(concat('%', :query, '%'))) "
-        + "order by s.name asc, s.id asc")
-    Page<RetailStore> findCustomerStores(@Param("query") String query, Pageable pageable);
-
-    @Query(value = RetailStoreGeoQueries.FIND_NEARBY_STORES,
-        countQuery = RetailStoreGeoQueries.COUNT_NEARBY_STORES, nativeQuery = true)
-    Page<RetailStore> findCustomerStoresNear(
-        @Param("query") String query,
-        @Param("latitude") double latitude,
-        @Param("longitude") double longitude,
-        @Param("radiusKm") double radiusKm,
-        Pageable pageable);
 
     Optional<RetailStore> findByIdAndActiveTrueAndDeletedAtIsNull(Integer id);
 

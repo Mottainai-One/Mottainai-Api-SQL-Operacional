@@ -45,9 +45,6 @@ public class Customer {
     @JoinColumn(name = "address_id")
     private Address address;
 
-    @Column(name = "external_auth_uid", length = 150)
-    private String externalAuthUid;
-
     @Column(name = "birth_date")
     private LocalDate birthDate;
 

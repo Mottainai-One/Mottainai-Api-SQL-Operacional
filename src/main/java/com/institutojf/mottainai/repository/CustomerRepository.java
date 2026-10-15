@@ -11,10 +11,6 @@ import java.util.List;
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Integer> {
 
-    Optional<Customer> findByExternalAuthUid(String externalAuthUid);
-
-    Optional<Customer> findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(String externalAuthUid);
-
     Optional<Customer> findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(String email);
 
     Optional<Customer> findByIdAndDeletedAtIsNull(Integer id);

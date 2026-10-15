@@ -1,23 +1,18 @@
 package com.institutojf.mottainai.service;
 
 import com.institutojf.mottainai.dto.request.CreateLoyaltyRewardRequest;
-import com.institutojf.mottainai.dto.request.RedeemRewardRequest;
 import com.institutojf.mottainai.dto.request.UpdateLoyaltyRewardRequest;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyRewardResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
 import com.institutojf.mottainai.exception.BusinessException;
-import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.model.LoyaltyAccount;
-import com.institutojf.mottainai.model.LoyaltyRedemption;
 import com.institutojf.mottainai.model.LoyaltyReward;
 import com.institutojf.mottainai.model.LoyaltyTransaction;
 import com.institutojf.mottainai.repository.LoyaltyAccountRepository;
-import com.institutojf.mottainai.repository.LoyaltyRedemptionRepository;
 import com.institutojf.mottainai.repository.LoyaltyRewardRepository;
 import com.institutojf.mottainai.repository.LoyaltyTransactionRepository;
-import com.institutojf.mottainai.repository.OutboxEventRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,10 +31,6 @@ public class LoyaltyService {
     private final LoyaltyTransactionRepository loyaltyTransactionRepository;
 
     private final LoyaltyRewardRepository loyaltyRewardRepository;
-
-    private final LoyaltyRedemptionRepository loyaltyRedemptionRepository;
-
-    private final OutboxEventRepository outboxEventRepository;
 
     private final AuditLogRepository auditLogRepository;
 
@@ -100,62 +91,6 @@ public class LoyaltyService {
             .stream()
             .map(LoyaltyRewardResponse::fromEntity)
             .toList();
-    }
-
-    @Transactional
-    public void redeemReward(Integer customerId, RedeemRewardRequest request, String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 180) {
-            throw new BusinessException("Idempotency-Key must contain between 1 and 180 characters");
-        }
-        outboxEventRepository.lockIdempotencyKey(idempotencyKey);
-        if (isIdempotentReplay(customerId, request.rewardId(), idempotencyKey)) {
-            return;
-        }
-        LoyaltyAccount account = loyaltyAccountRepository.findByCustomerIdForUpdate(customerId)
-            .orElseThrow(() -> new ResourceNotFoundException("Loyalty account not found"));
-        LoyaltyReward reward = loyaltyRewardRepository.findById(request.rewardId())
-            .orElseThrow(() -> new ResourceNotFoundException("Reward not found"));
-        LocalDateTime now = LocalDateTime.now();
-        if (!Boolean.TRUE.equals(account.getActive())) {
-            throw new BusinessException("Loyalty account is not active");
-        }
-        if (!reward.getActive() || reward.getValidFrom() != null && reward.getValidFrom().isAfter(now)
-                || reward.getValidUntil() != null && !reward.getValidUntil().isAfter(now)) {
-            throw new BusinessException("Reward is not active");
-        }
-        if (account.getPointsBalance() < reward.getPointsCost()) {
-            throw new BusinessException("Insufficient points balance");
-        }
-        account.setPointsBalance(account.getPointsBalance() - reward.getPointsCost());
-        account.setUpdatedAt(LocalDateTime.now());
-        LoyaltyRedemption redemption = new LoyaltyRedemption();
-        redemption.setLoyaltyAccount(account);
-        redemption.setReward(reward);
-        redemption.setPointsSpent(reward.getPointsCost());
-        redemption.setRedeemedAt(LocalDateTime.now());
-        redemption.setStatus("CONFIRMED");
-        LoyaltyTransaction transaction = new LoyaltyTransaction();
-        transaction.setLoyaltyAccount(account);
-        transaction.setTransactionType("REDEEM");
-        transaction.setPoints(-reward.getPointsCost());
-        transaction.setDescription("Redeemed: " + reward.getName());
-        transaction.setCreatedAt(LocalDateTime.now());
-        loyaltyAccountRepository.save(account);
-        loyaltyRedemptionRepository.saveAndFlush(redemption);
-        loyaltyTransactionRepository.save(transaction);
-        outboxEventRepository.publishLoyaltyRedemption(redemption.getId().toString(), customerId, request.rewardId(),
-                reward.getPointsCost(), idempotencyKey);
-    }
-
-    private boolean isIdempotentReplay(Integer customerId, Integer rewardId, String idempotencyKey) {
-        var previous = outboxEventRepository.findByIdempotencyKey(idempotencyKey);
-        if (previous.isEmpty()) {
-            return false;
-        }
-        if (!outboxEventRepository.isLoyaltyRedemptionFor(previous.get(), customerId, rewardId)) {
-            throw new ConflictException("Idempotency-Key was already used for a different request");
-        }
-        return true;
     }
 
 }
