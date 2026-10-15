@@ -31,13 +31,12 @@ class CustomerAuthenticationProfileTest {
     private CustomerAuthenticationService authenticationService;
 
     @Test
-    @DisplayName("Should return the authenticated customer's masked profile")
+    @DisplayName("Should return the authenticated customer's operational profile")
     void shouldReturnAuthenticatedCustomerProfile() {
         TestingAuthenticationToken authentication = new TestingAuthenticationToken("firebase-uid", null);
         authentication.setAuthenticated(true);
         Customer customer = new Customer();
         customer.setId(7);
-        customer.setCpf("12345678901");
         CustomerResponse response = CustomerResponse.fromEntity(customer);
         when(customerAccess.currentCustomer(authentication)).thenReturn(customer);
         when(customerService.find(7)).thenReturn(response);
@@ -45,7 +44,6 @@ class CustomerAuthenticationProfileTest {
         CustomerResponse result = authenticationService.profile(authentication);
 
         assertEquals(7, result.id());
-        assertEquals("***.456.789-**", result.cpf());
         verify(customerService).find(7);
     }
 

@@ -6,6 +6,7 @@ import com.institutojf.mottainai.dto.request.UpdateFirebaseCustomerProfileReques
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.model.*;
 import com.institutojf.mottainai.repository.*;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +54,8 @@ class CustomerServiceTest {
     @DisplayName("Should create customer authentication and loyalty account atomically")
     void createsCustomerAuthenticationAndLoyaltyAccountAtomically() {
         CreateCustomerRequest request = new CreateCustomerRequest("Ana", "12345678909", "ana@example.com", "Strong1!", null, null, true, null);
-        when(customerAuthRepository.findByLoginEmailIgnoreCase(request.email())).thenReturn(Optional.empty());
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(ProtectedDataToken.email(request.email())))
+            .thenReturn(Optional.empty());
         when(passwordEncoder.encode(request.password())).thenReturn("hash");
         when(customerRepository.save(any())).thenAnswer(invocation -> {
             Customer customer = invocation.getArgument(0);
@@ -61,7 +63,9 @@ class CustomerServiceTest {
             return customer;
         });
         assertEquals(7, service.create(request).id());
-        verify(customerAuthRepository).save(argThat(auth -> auth.getCustomer().getId().equals(7) && auth.getPasswordHash().equals("hash") && auth.getActive()));
+        verify(customerAuthRepository).save(argThat(auth -> auth.getCustomer().getId().equals(7)
+                && auth.getLoginEmail().equals(ProtectedDataToken.email(request.email()))
+                && auth.getPasswordHash().equals("hash") && auth.getActive()));
         verify(loyaltyAccountRepository)
             .save(argThat(account -> account.getPointsBalance() == 0 && account.getCustomer().getId().equals(7)));
     }
@@ -77,7 +81,8 @@ class CustomerServiceTest {
     @DisplayName("Should create Firebase customer profile without storing a password")
     void createsFirebaseCustomerProfileWithoutPassword() {
         var request = new CreateFirebaseCustomerProfileRequest("Ana", "12345678909", null, null, true, null);
-        when(customerRepository.findByExternalAuthUid("firebase-uid")).thenReturn(Optional.empty());
+        when(customerRepository.findByExternalAuthUid(ProtectedDataToken.externalAuthUid("firebase-uid")))
+            .thenReturn(Optional.empty());
         when(customerRepository.save(any())).thenAnswer(invocation -> {
             Customer customer = invocation.getArgument(0);
             customer.setId(8);
@@ -87,8 +92,8 @@ class CustomerServiceTest {
         var response = service.createFirebaseProfile(request, "firebase-uid", "ana@example.com");
 
         assertEquals(8, response.id());
-        assertEquals("ana@example.com", response.email());
-        verify(customerRepository).save(argThat(customer -> customer.getExternalAuthUid().equals("firebase-uid")));
+        verify(customerRepository).save(argThat(customer -> customer.getExternalAuthUid()
+                .equals(ProtectedDataToken.externalAuthUid("firebase-uid"))));
         verify(customerAuthRepository, never()).save(any());
         verify(loyaltyAccountRepository).save(argThat(account -> account.getCustomer().getId().equals(8)
                 && account.getPointsBalance() == 0));
@@ -102,14 +107,14 @@ class CustomerServiceTest {
         existing.setFullName("Ana");
         existing.setEmail("ana@example.com");
         existing.setActive(true);
-        when(customerRepository.findByExternalAuthUid("firebase-uid")).thenReturn(Optional.of(existing));
+        when(customerRepository.findByExternalAuthUid(ProtectedDataToken.externalAuthUid("firebase-uid")))
+            .thenReturn(Optional.of(existing));
 
         var response = service.createFirebaseProfile(
             new CreateFirebaseCustomerProfileRequest("Ignored", "12345678909", null, null, false, null),
             "firebase-uid", "ana@example.com");
 
         assertEquals(8, response.id());
-        assertEquals("Ana", response.fullName());
         verify(customerRepository, never()).save(any());
         verifyNoInteractions(loyaltyAccountRepository);
     }
@@ -119,22 +124,19 @@ class CustomerServiceTest {
     void updatesFirebaseCustomerProfile() {
         Customer customer = new Customer();
         customer.setId(8);
-        customer.setExternalAuthUid("firebase-uid");
+        customer.setExternalAuthUid(ProtectedDataToken.externalAuthUid("firebase-uid"));
         customer.setFullName("Ana");
         customer.setEmail("ana@example.com");
         customer.setCpf("12345678909");
         customer.setMarketingConsent(false);
         customer.setActive(true);
-        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull("firebase-uid"))
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(
+                ProtectedDataToken.externalAuthUid("firebase-uid")))
             .thenReturn(Optional.of(customer));
 
         var response = service.updateFirebaseProfile(
                 new UpdateFirebaseCustomerProfileRequest("Ana Silva", "11999999999", true), "firebase-uid");
 
-        assertEquals("Ana Silva", response.fullName());
-        assertEquals("ana@example.com", response.email());
-        assertEquals("***.456.789-**", response.cpf());
-        assertEquals("11999999999", response.phone());
         assertTrue(response.marketingConsent());
         verify(customerRepository).save(customer);
         verifyNoInteractions(customerAuthRepository);

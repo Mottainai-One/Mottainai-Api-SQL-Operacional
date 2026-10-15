@@ -6,10 +6,6 @@ import java.time.LocalDateTime;
 
 public record CustomerResponse(
         Integer id,
-        String fullName,
-        String cpf,
-        String email,
-        String phone,
         Short birthYear,
         Boolean active,
         Boolean marketingConsent,
@@ -17,7 +13,7 @@ public record CustomerResponse(
         LocalDateTime updatedAt
 ) {
     public static CustomerResponse fromEntity(Customer customer) {
-        return new CustomerResponse(customer.getId(), null, null, null, null, customer.getBirthYear(),
+        return new CustomerResponse(customer.getId(), customer.getBirthYear(),
                 customer.getActive(), customer.getMarketingConsent(), customer.getCreatedAt(), customer.getUpdatedAt());
     }
 }

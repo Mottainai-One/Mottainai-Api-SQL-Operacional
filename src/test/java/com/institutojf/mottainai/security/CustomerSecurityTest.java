@@ -89,8 +89,7 @@ class CustomerSecurityTest {
     @Test
     @DisplayName("Should permit customer to read own record")
     void permitsCustomerToReadOwnRecord() throws Exception {
-        when(customerService.find(7)).thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
-                null, null, true, false, null, null));
+        when(customerService.find(7)).thenReturn(new CustomerResponse(7, null, true, false, null, null));
         mockMvc.perform(get("/api/v1/customers/7").with(user("ana@example.com").roles("CUSTOMER")))
             .andExpect(status().isOk());
         verify(customerAccess).checkAccess(any(), eq(7));
@@ -161,8 +160,7 @@ class CustomerSecurityTest {
     @DisplayName("Should create the SQL profile for an authenticated Firebase customer")
     void createsFirebaseCustomerProfile() throws Exception {
         when(customerService.createFirebaseProfile(any(), eq("firebase-uid"), eq("ana@example.com")))
-            .thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
-                null, null, true, false, null, null));
+            .thenReturn(new CustomerResponse(7, null, true, false, null, null));
 
         mockMvc.perform(post("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid").claim("email", "ana@example.com")))
@@ -177,8 +175,7 @@ class CustomerSecurityTest {
     @DisplayName("Should update only the authenticated Firebase customer's editable profile fields")
     void updatesFirebaseCustomerProfile() throws Exception {
         when(customerService.updateFirebaseProfile(any(), eq("firebase-uid")))
-            .thenReturn(new CustomerResponse(7, "Ana Silva", "***.456.789-**", "ana@example.com",
-                "11999999999", null, true, true, null, null));
+            .thenReturn(new CustomerResponse(7, null, true, true, null, null));
 
         mockMvc.perform(put("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid")))
