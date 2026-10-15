@@ -1,10 +1,8 @@
 package com.institutojf.mottainai.controller.swagger;
 
-import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
 import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateLoyaltyStatusRequest;
-import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
@@ -14,7 +12,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import java.util.List;
-import org.springframework.security.core.Authentication;
 
 @Tag(name = "Customer", description = "API for Customer")
 public interface CustomerControllerApi {
@@ -35,13 +32,13 @@ public interface CustomerControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    CustomerResponse find(Integer id, Authentication authentication);
+    CustomerResponse find(Integer id);
 
     @Operation(summary = "update")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    CustomerResponse update(Integer id, UpdateCustomerRequest request, Authentication authentication);
+    CustomerResponse update(Integer id, UpdateCustomerRequest request);
 
     @Operation(summary = "delete")
     @ApiResponses({
@@ -53,42 +50,24 @@ public interface CustomerControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Successful response")
     })
-    void anonymize(Integer id, Authentication authentication);
-
-    @Operation(summary = "geofences")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful response")
-    })
-    List<CustomerGeofenceResponse> geofences(Integer id, Authentication authentication);
-
-    @Operation(summary = "addGeofence")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Successful response")
-    })
-    CustomerGeofenceResponse addGeofence(Integer id, CreateCustomerGeofenceRequest request, Authentication authentication);
-
-    @Operation(summary = "removeGeofence")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Successful response")
-    })
-    void removeGeofence(Integer id, Integer geofenceId, Authentication authentication);
+    void anonymize(Integer id);
 
     @Operation(summary = "updateLoyaltyStatus")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    LoyaltyAccountResponse updateLoyaltyStatus(Integer id, UpdateLoyaltyStatusRequest request, Authentication authentication);
+    LoyaltyAccountResponse updateLoyaltyStatus(Integer id, UpdateLoyaltyStatusRequest request);
 
     @Operation(summary = "loyalty")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    LoyaltyAccountResponse loyalty(Integer id, Authentication authentication);
+    LoyaltyAccountResponse loyalty(Integer id);
 
     @Operation(summary = "loyaltyTransactions")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    List<LoyaltyTransactionResponse> loyaltyTransactions(Integer id, LocalDateTime from, LocalDateTime to, Authentication authentication);
+    List<LoyaltyTransactionResponse> loyaltyTransactions(Integer id, LocalDateTime from, LocalDateTime to);
 
 }

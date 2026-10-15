@@ -1,22 +1,18 @@
 package com.institutojf.mottainai.controller;
 
 import com.institutojf.mottainai.controller.swagger.CustomerControllerApi;
-import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
 import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateLoyaltyStatusRequest;
-import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
-import com.institutojf.mottainai.security.CustomerAccess;
 import com.institutojf.mottainai.service.CustomerService;
 import com.institutojf.mottainai.service.LoyaltyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -41,8 +37,6 @@ public class CustomerController implements CustomerControllerApi {
 
     private final LoyaltyService loyaltyService;
 
-    private final CustomerAccess customerAccess;
-
     @Override
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
@@ -53,23 +47,22 @@ public class CustomerController implements CustomerControllerApi {
     @Override
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
     public CustomerResponse create(@Valid @RequestBody CreateCustomerRequest request) {
         return customerService.create(request);
     }
 
     @Override
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public CustomerResponse find(@PathVariable Integer id, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public CustomerResponse find(@PathVariable Integer id) {
         return customerService.find(id);
     }
 
     @Override
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public CustomerResponse update(@PathVariable Integer id, @Valid @RequestBody UpdateCustomerRequest request, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public CustomerResponse update(@PathVariable Integer id, @Valid @RequestBody UpdateCustomerRequest request) {
         return customerService.update(id, request);
     }
 
@@ -84,59 +77,29 @@ public class CustomerController implements CustomerControllerApi {
     @Override
     @PostMapping("/{id}/anonymize")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public void anonymize(@PathVariable Integer id, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public void anonymize(@PathVariable Integer id) {
         customerService.anonymize(id);
     }
 
     @Override
-    @GetMapping("/{id}/geofences")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public List<CustomerGeofenceResponse> geofences(@PathVariable Integer id, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        return customerService.geofences(id);
-    }
-
-    @Override
-    @PostMapping("/{id}/geofences")
-    @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public CustomerGeofenceResponse addGeofence(@PathVariable Integer id, @Valid @RequestBody CreateCustomerGeofenceRequest request, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        return customerService.addGeofence(id, request);
-    }
-
-    @Override
-    @DeleteMapping("/{id}/geofences/{geofenceId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public void removeGeofence(@PathVariable Integer id, @PathVariable Integer geofenceId, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        customerService.removeGeofence(id, geofenceId);
-    }
-
-    @Override
     @PatchMapping("/{id}/loyalty/status")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public LoyaltyAccountResponse updateLoyaltyStatus(@PathVariable Integer id, @Valid @RequestBody UpdateLoyaltyStatusRequest request, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public LoyaltyAccountResponse updateLoyaltyStatus(@PathVariable Integer id, @Valid @RequestBody UpdateLoyaltyStatusRequest request) {
         return customerService.updateLoyaltyStatus(id, request);
     }
 
     @Override
     @GetMapping("/{id}/loyalty")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public LoyaltyAccountResponse loyalty(@PathVariable Integer id, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public LoyaltyAccountResponse loyalty(@PathVariable Integer id) {
         return loyaltyService.getLoyaltyAccount(id);
     }
 
     @Override
     @GetMapping("/{id}/loyalty/transactions")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public List<LoyaltyTransactionResponse> loyaltyTransactions(@PathVariable Integer id, @RequestParam LocalDateTime from, @RequestParam LocalDateTime to, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER')")
+    public List<LoyaltyTransactionResponse> loyaltyTransactions(@PathVariable Integer id, @RequestParam LocalDateTime from, @RequestParam LocalDateTime to) {
         return loyaltyService.getTransactions(id, from, to);
     }
 

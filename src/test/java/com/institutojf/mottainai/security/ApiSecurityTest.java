@@ -2,7 +2,6 @@ package com.institutojf.mottainai.security;
 
 import com.institutojf.mottainai.controller.EmployeeController;
 import com.institutojf.mottainai.repository.AppUserRepository;
-import com.institutojf.mottainai.repository.CustomerAuthRepository;
 import com.institutojf.mottainai.service.EmployeeService;
 import com.institutojf.mottainai.service.RlsContextService;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -38,10 +36,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({ ApiSecurityTest.SecurityTestController.class, ApiSecurityTest.CatalogSecurityTestController.class,
-        EmployeeController.class })
+@WebMvcTest({ ApiSecurityTest.SecurityTestController.class, EmployeeController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class,
-        ApiSecurityTest.CatalogSecurityTestController.class })
+        })
 @TestPropertySource(properties = { "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60",
         "security.cors.allowed-origins=https://app.example" })
@@ -61,9 +58,6 @@ class ApiSecurityTest {
 
     @MockitoBean
     private RlsContextService rlsContextService;
-
-    @MockitoBean
-    private CustomerAuthRepository customerAuthRepository;
 
     @Test
     @DisplayName("Should reject unauthenticated API request")
@@ -113,19 +107,6 @@ class ApiSecurityTest {
     }
 
     @Test
-    @DisplayName("Should require a Firebase-authenticated customer for customer catalog reads")
-    void shouldRequireFirebaseAuthenticationForCustomerCatalog() throws Exception {
-        mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
-            .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
-                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
-            .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/customer-catalog/security-probe")
-                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
     @DisplayName("Should proxy the secured employee controller with CGLIB")
     void shouldProxyEmployeeControllerWithCglib() {
         assertTrue(AopUtils.isCglibProxy(employeeController));
@@ -165,21 +146,6 @@ class ApiSecurityTest {
         @PatchMapping
         public String update() {
             return "updated";
-        }
-    }
-
-    @RestController
-    @RequestMapping("/api/v1/customer-catalog/security-probe")
-    static class CatalogSecurityTestController {
-        @GetMapping
-        public String read() {
-            return "ok";
-        }
-
-        @PostMapping
-        @ResponseStatus(HttpStatus.CREATED)
-        public String create() {
-            return "created";
         }
     }
 
