@@ -1,6 +1,5 @@
 package com.institutojf.mottainai.service;
 
-import com.institutojf.mottainai.config.StaffProperties;
 import com.institutojf.mottainai.dto.request.CustomerLoginRequest;
 import com.institutojf.mottainai.dto.request.CustomerPasswordRecoveryRequest;
 import com.institutojf.mottainai.dto.request.CustomerPasswordResetRequest;
@@ -13,12 +12,9 @@ import com.institutojf.mottainai.repository.CustomerAuthRepository;
 import com.institutojf.mottainai.security.CustomerAccess;
 import com.institutojf.mottainai.security.JwtProperties;
 import com.institutojf.mottainai.security.JwtService;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.TokenHashService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.mail.autoconfigure.MailProperties;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -55,12 +51,6 @@ public class CustomerAuthenticationService {
 
     private final JwtProperties jwtProperties;
 
-    private final JavaMailSender mailSender;
-
-    private final MailProperties mailProperties;
-
-    private final StaffProperties staffProperties;
-
     @Transactional(readOnly = true)
     public CustomerResponse profile(Authentication authentication) {
         return customerService.find(customerAccess.currentCustomer(authentication).getId());
@@ -68,7 +58,7 @@ public class CustomerAuthenticationService {
 
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public CustomerTokenResponse login(CustomerLoginRequest request) {
-        CustomerAuth auth = customerAuthRepository.findByLoginEmailForUpdate(request.email())
+        CustomerAuth auth = customerAuthRepository.findByLoginEmailForUpdate(ProtectedDataToken.email(request.email()))
             .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
         LocalDateTime now = LocalDateTime.now();
         if (!Boolean.TRUE.equals(auth.getActive()) || !Boolean.TRUE.equals(auth.getCustomer().getActive())
@@ -99,24 +89,11 @@ public class CustomerAuthenticationService {
 
     @Transactional(noRollbackFor = CustomerRecoveryDeliveryException.class)
     public void requestPasswordReset(CustomerPasswordRecoveryRequest request) {
-        customerAuthRepository.findByLoginEmailForUpdate(request.email())
+        customerAuthRepository.findByLoginEmailForUpdate(ProtectedDataToken.email(request.email()))
             .filter(CustomerAuth::getActive)
             .ifPresent(auth -> {
-                String rawToken = tokenHashService.newToken();
-                auth.setRecoveryTokenHash(tokenHashService.hash(rawToken));
-                auth.setRecoveryExpiresAt(LocalDateTime.now().plusMinutes(RESET_MINUTES));
-                auth.setUpdatedAt(LocalDateTime.now());
-                customerAuthRepository.save(auth);
-                try {
-                    sendRecovery(auth.getLoginEmail(), rawToken);
-                }
-                catch (MailException exception) {
-                    auth.setRecoveryTokenHash(null);
-                    auth.setRecoveryExpiresAt(null);
-                    auth.setUpdatedAt(LocalDateTime.now());
-                    customerAuthRepository.saveAndFlush(auth);
-                    throw new CustomerRecoveryDeliveryException(exception);
-                }
+                throw new CustomerRecoveryDeliveryException(new IllegalStateException(
+                        "The protected database does not retain a deliverable customer email"));
             });
     }
 
@@ -156,16 +133,6 @@ public class CustomerAuthenticationService {
         if (password.length() < 8 || !upper || !lower || !number || !special) {
             throw new BusinessException("Password must contain uppercase, lowercase, number and special character");
         }
-    }
-
-    private void sendRecovery(String email, String token) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailProperties.getUsername());
-        message.setTo(email);
-        message.setSubject("Mottainai customer password recovery");
-        message.setText("Use this link to reset your password: " + staffProperties.passwordResetUrl() + "?token="
-                + token + "\n\nThis link expires in 15 minutes.");
-        mailSender.send(message);
     }
 
 }

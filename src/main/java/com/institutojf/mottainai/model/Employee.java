@@ -10,13 +10,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "employee", schema = "mottainai")
@@ -36,14 +34,13 @@ public class Employee {
     @Column(nullable = false, length = 150)
     private String name;
 
-    @JdbcTypeCode(Types.CHAR)
-    @Column(nullable = false, unique = true, length = 11, columnDefinition = "CHAR(11)")
+    @Column(nullable = false, unique = true, length = 80)
     private String cpf;
 
     @Column(length = 150)
     private String email;
 
-    @Column(length = 20)
+    @Column(length = 80)
     private String phone;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

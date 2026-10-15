@@ -2,19 +2,12 @@ package com.institutojf.mottainai.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.JdbcTypeCode;
-
-import java.sql.Types;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -31,25 +24,23 @@ public class Customer {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @JdbcTypeCode(Types.CHAR)
-    @Column(length = 11, columnDefinition = "CHAR(11)")
+    @Column(length = 80)
     private String cpf;
 
     @Column(length = 150)
     private String email;
 
-    @Column(length = 20)
+    @Column(length = 80)
     private String phone;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "address_id")
-    private Address address;
+    @Column(name = "birth_year")
+    private Short birthYear;
+
+    @Column(name = "address_token", length = 80)
+    private String addressToken;
 
     @Column(name = "external_auth_uid", length = 150)
     private String externalAuthUid;
-
-    @Column(name = "birth_date")
-    private LocalDate birthDate;
 
     @Column(nullable = false)
     private Boolean active = true;
