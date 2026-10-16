@@ -13,12 +13,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryAccessTest {
@@ -61,6 +64,7 @@ class InventoryAccessTest {
         InventoryAccess access = new InventoryAccess(appUserRepository, retailStoreRepository);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("admin@example.com");
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"))).when(authentication).getAuthorities();
         when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("admin@example.com"))
             .thenReturn(Optional.of(userInStoreWithRole(2, "ADMINISTRATOR")));
         assertThrows(BusinessException.class, () -> access.resolveStoreId(authentication, null));

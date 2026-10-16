@@ -27,10 +27,14 @@ import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.MailSendException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
@@ -38,6 +42,7 @@ import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +57,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class EmployeeServiceTest {
+
+    @BeforeEach
+    void authenticateAdministrator() {
+        authenticateAs("ADMINISTRATOR");
+    }
 
     @Mock
     private AppUserRepository appUserRepository;
@@ -97,6 +107,7 @@ class EmployeeServiceTest {
 
     @AfterEach
     void clearTransactionSynchronization() {
+        SecurityContextHolder.clearContext();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -350,6 +361,7 @@ class EmployeeServiceTest {
     @Test
     @DisplayName("Should reject manager updates to employee records")
     void shouldRejectManagerEmployeeUpdate() {
+        authenticateAs("MANAGER");
         EmployeeService service = new EmployeeService(appUserRepository, employeeRepository, roleRepository, storeRepository, activityRepository, invitationRepository, passwordResetTokenRepository, sessionRepository, auditLogRepository, emailService, passwordEncoder, tokenHashService, emailFailureService, entityManager);
         AppUser manager = user(1, "manager@example.com", "MANAGER", true);
         AppUser employee = user(2, "employee@example.com", "OPERATOR", true);
@@ -430,6 +442,11 @@ class EmployeeServiceTest {
         user.setEmployee(employee);
         user.setPasswordSet(passwordSet);
         return user;
+    }
+
+    private void authenticateAs(String role) {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "test-user", "unused", List.of(new SimpleGrantedAuthority("ROLE_" + role))));
     }
 
 }

@@ -19,13 +19,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class PromotionServiceTest {
@@ -63,6 +66,7 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should create a manager promotion pending approval with its creator")
     void shouldCreatePendingPromotionForManager() {
+        stubRole("MANAGER");
         RetailStore store = new RetailStore();
         store.setId(10);
         AppUser manager = userWithRole("MANAGER", 21, 31);
@@ -92,6 +96,7 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should approve a pending promotion with the administrator as approver")
     void shouldApprovePendingPromotion() {
+        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
@@ -113,6 +118,7 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should reject approval of a promotion outside the pending state")
     void shouldRejectApprovalOutsidePendingState() {
+        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setStatus(PromotionStatus.APPROVED);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
@@ -124,6 +130,7 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should cancel a non-terminal promotion")
     void shouldCancelPromotion() {
+        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.APPROVED);
@@ -143,6 +150,7 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should logically delete a manager promotion")
     void shouldLogicallyDeletePromotion() {
+        stubRole("MANAGER");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
@@ -176,6 +184,10 @@ class PromotionServiceTest {
         user.setId(userId);
         user.setEmployee(employee);
         return user;
+    }
+
+    private void stubRole(String roleName) {
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_" + roleName))).when(authentication).getAuthorities();
     }
 
 }
