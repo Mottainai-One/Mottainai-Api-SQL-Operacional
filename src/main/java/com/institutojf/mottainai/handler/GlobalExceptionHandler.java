@@ -3,7 +3,6 @@ package com.institutojf.mottainai.handler;
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.CepNotFoundException;
 import com.institutojf.mottainai.exception.ConflictException;
-import com.institutojf.mottainai.exception.CustomerRecoveryDeliveryException;
 import com.institutojf.mottainai.exception.InvitationDeliveryException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import org.springframework.dao.DataAccessException;
@@ -33,13 +32,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvitationDeliveryException.class)
     public ResponseEntity<ApiError> handleInvitationDeliveryException(InvitationDeliveryException exception) {
-        var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE", exception.getMessage(),
-                null);
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
-    }
-
-    @ExceptionHandler(CustomerRecoveryDeliveryException.class)
-    public ResponseEntity<ApiError> handleCustomerRecoveryDeliveryException(CustomerRecoveryDeliveryException exception) {
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE", exception.getMessage(),
                 null);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);

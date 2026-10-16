@@ -15,6 +15,7 @@ import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import com.institutojf.mottainai.repository.EmployeeRepository;
 import com.institutojf.mottainai.repository.EmployeeRoleRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -67,32 +68,35 @@ public class UserProfileService {
     @Transactional
     public InviteStoreUserResponse invite(InviteStoreUserRequest request, String requesterEmail) {
         AppUser requester = findUser(requesterEmail);
-        if (appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(request.email())) {
+        String email = StaffContactData.email(request.email());
+        String cpfToken = ProtectedDataToken.cpf(request.cpf());
+        if (appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(email)) {
             throw new ConflictException("Email already exists");
         }
-        if (employeeRepository.existsByCpf(request.cpf())) {
+        if (employeeRepository.existsByCpf(cpfToken)) {
             throw new ConflictException("CPF already exists");
         }
         Employee employee = new Employee();
         employee.setStore(requester.getEmployee().getStore());
         employee.setRole(findRole(request.role()));
-        employee.setName(request.name());
-        employee.setCpf(request.cpf());
-        employee.setEmail(request.email());
-        employee.setPhone(request.phone());
+        employee.setName(StaffContactData.name(request.name()));
+        employee.setCpf(cpfToken);
+        employee.setEmail(email);
+        employee.setPhone(StaffContactData.phone(request.phone()));
         employee.setActive(false);
         employee = employeeRepository.save(employee);
         AppUser user = new AppUser();
         user.setEmployee(employee);
-        user.setEmail(request.email());
+        user.setEmail(email);
+        user.setCpf(cpfToken);
         user.setPasswordHash(passwordEncoder.encode(generateRandomSecret()));
         user.setActive(false);
         user = appUserRepository.save(user);
         auditLogRepository.record("employee", "INSERT", employee.getId().toString(), requester.getId(), null,
-                Map.of("name", employee.getName(), "cpf", employee.getCpf(), "email", employee.getEmail(), "role_id",
+                Map.of("name", employee.getName(), "cpf_masked", maskCpf(employee.getCpf()), "email", employee.getEmail(), "role_id",
                         employee.getRole().getId(), "store_id", employee.getStore().getId(), "active", false));
         auditLogRepository.record("app_user", "INSERT", user.getId().toString(), requester.getId(), null, Map
-            .of("employee_id", employee.getId(), "email", user.getEmail(), "cpf", employee.getCpf(), "active", false));
+            .of("employee_id", employee.getId(), "email", user.getEmail(), "cpf_masked", maskCpf(employee.getCpf()), "active", false));
         return new InviteStoreUserResponse(toResponse(user), false, true, false);
     }
 
@@ -123,7 +127,7 @@ public class UserProfileService {
     }
 
     private AppUser findUser(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email)
+        return appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(StaffContactData.email(email))
             .filter(user -> Boolean.TRUE.equals(user.getActive())
                     && Boolean.TRUE.equals(user.getEmployee().getActive()))
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));

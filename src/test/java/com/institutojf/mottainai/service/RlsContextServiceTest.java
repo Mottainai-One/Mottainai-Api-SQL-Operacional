@@ -5,6 +5,7 @@ import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeeRole;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,11 +37,11 @@ class RlsContextServiceTest {
     @DisplayName("Should use the restricted database function to bootstrap CPF context")
     void shouldBootstrapCpfThroughDatabaseFunction() {
         when(jdbcTemplate.queryForObject("SELECT mottainai.fn_bootstrap_staff_context(?, ?)", Boolean.class,
-                "12345678901", "CPF"))
+                ProtectedDataToken.cpf("12345678901"), "CPF"))
             .thenReturn(true);
         assertTrue(service.bootstrapByCpf("12345678901"));
         verify(jdbcTemplate).queryForObject("SELECT mottainai.fn_bootstrap_staff_context(?, ?)", Boolean.class,
-                "12345678901", "CPF");
+                ProtectedDataToken.cpf("12345678901"), "CPF");
     }
 
     @Test
@@ -67,7 +68,7 @@ class RlsContextServiceTest {
         employee.setActive(true);
         user.setEmployee(employee);
         when(jwt.getClaimAsString("use")).thenReturn("access");
-        when(jwt.getSubject()).thenReturn("manager@example.com");
+        when(jwt.getSubject()).thenReturn(" Manager@Example.com ");
         when(jwt.getClaimAsString("sid")).thenReturn(sessionId.toString());
         when(jwt.getClaimAsStringList("roles")).thenReturn(List.of("ADMINISTRATOR"));
         when(jdbcTemplate.queryForObject("SELECT mottainai.fn_bootstrap_staff_context(?, ?)", Boolean.class, "manager@example.com", "EMAIL"))

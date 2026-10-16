@@ -8,7 +8,9 @@ Todas as rotas abaixo usam `/api/v1`. Envie `Authorization: Bearer <firebaseIdTo
 
 Depois de criar a conta/autenticar com o Firebase Authentication, envie o ID token no header `Authorization: Bearer <firebaseIdToken>` e crie o perfil operacional com `POST /client/auth/profile`. O e-mail e o UID são extraídos do token Firebase validado; não envie nem armazene senha na API.
 
-Pré-requisito de banco: `mottainai.customer.external_auth_uid` deve ser anulável e único quando preenchido, para que um UID Firebase não seja associado a dois clientes. Confira/aplique essa alteração no repositório do banco antes de publicar a API.
+Pré-requisito de banco: `mottainai.customer.external_auth_uid` deve ser anulável e único quando preenchido. No schema protegido, o valor persistido é o token SHA-256 do UID; o aplicativo continua enviando o ID token original do Firebase. Confira o instalador do banco antes de publicar a API.
+
+As respostas de perfil contêm somente `id`, `birthYear`, `active`, `marketingConsent`, `createdAt` e `updatedAt`. Nome, CPF, e-mail, telefone e endereço não são devolvidos. As entradas abaixo continuam recebendo os dados necessários para a tokenização. Veja o [contrato protegido e a adaptação de consumidores](PROTECTED_CUSTOMER_CONTRACT.md).
 
 ```json
 {

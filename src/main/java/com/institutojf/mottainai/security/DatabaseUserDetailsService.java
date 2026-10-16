@@ -27,10 +27,11 @@ public class DatabaseUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String cpf) {
-        if (!rlsContextService.bootstrapByCpf(cpf)) {
+        String cpfToken = ProtectedDataToken.cpf(cpf);
+        if (!rlsContextService.bootstrapByCpf(cpfToken)) {
             throw new UsernameNotFoundException("Invalid CPF or password");
         }
-        AppUser user = appUserRepository.findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(cpf)
+        AppUser user = appUserRepository.findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(cpfToken)
             .filter(this::hasActiveEmployment)
             .orElseThrow(() -> new UsernameNotFoundException("Invalid CPF or password"));
         String role = user.getEmployee().getRole().getName().toUpperCase(Locale.ROOT);

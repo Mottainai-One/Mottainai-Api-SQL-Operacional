@@ -2,7 +2,6 @@ package com.institutojf.mottainai.repository;
 
 import com.institutojf.mottainai.model.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -19,7 +18,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
 
     Optional<Customer> findByIdAndDeletedAtIsNull(Integer id);
 
-    @EntityGraph(attributePaths = "address")
     List<Customer> findByDeletedAtIsNullOrderByFullName();
 
     boolean existsByCpfAndDeletedAtIsNull(String cpf);

@@ -5,6 +5,7 @@ import com.institutojf.mottainai.dto.response.*;
 import com.institutojf.mottainai.exception.*;
 import com.institutojf.mottainai.model.*;
 import com.institutojf.mottainai.repository.*;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,8 +28,6 @@ public class CustomerService {
     private final LoyaltyAccountRepository loyaltyAccountRepository;
 
     private final RetailStoreRepository retailStoreRepository;
-
-    private final AddressRepository addressRepository;
 
     private final AuditLogRepository auditLogRepository;
 
@@ -61,7 +60,8 @@ public class CustomerService {
                 || email == null || email.isBlank() || email.trim().length() > 150) {
             throw new BusinessException("Firebase token must contain a valid subject and email");
         }
-        var linkedCustomer = customerRepository.findByExternalAuthUid(externalAuthUid);
+        String externalAuthToken = ProtectedDataToken.externalAuthUid(externalAuthUid);
+        var linkedCustomer = customerRepository.findByExternalAuthUid(externalAuthToken);
         if (linkedCustomer.isPresent()) {
             Customer customer = linkedCustomer.get();
             if (Boolean.TRUE.equals(customer.getActive()) && customer.getDeletedAt() == null) {
@@ -70,10 +70,9 @@ public class CustomerService {
             throw new ConflictException("Firebase identity is linked to an inactive customer");
         }
 
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
-        ensureProfileIsAvailable(request.cpf(), normalizedEmail);
-        Customer customer = createProfile(request.fullName(), request.cpf(), normalizedEmail, request.phone(),
-                request.birthDate(), request.marketingConsent(), request.address(), externalAuthUid,
+        ensureProfileIsAvailable(request.cpf(), email);
+        Customer customer = createProfile(request.fullName(), request.cpf(), email, request.phone(),
+                request.birthDate(), request.marketingConsent(), request.address(), externalAuthToken,
                 LocalDateTime.now());
         return CustomerResponse.fromEntity(customer);
     }
@@ -81,12 +80,13 @@ public class CustomerService {
     @Transactional
     public CustomerResponse updateFirebaseProfile(UpdateFirebaseCustomerProfileRequest request,
             String externalAuthUid) {
-        Customer customer = customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(externalAuthUid)
+        Customer customer = customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(
+                ProtectedDataToken.externalAuthUid(externalAuthUid))
             .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
         Map<String, Object> oldData = Map.of("full_name", customer.getFullName(),
                 "marketing_consent", customer.getMarketingConsent());
-        customer.setFullName(request.fullName().trim());
-        customer.setPhone(normalize(request.phone()));
+        customer.setFullName(ProtectedDataToken.customerName(request.fullName()));
+        customer.setPhone(ProtectedDataToken.phone(request.phone()));
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
         customerRepository.save(customer);
@@ -111,20 +111,22 @@ public class CustomerService {
     @Transactional
     public CustomerResponse update(Integer id, UpdateCustomerRequest request) {
         Customer customer = customer(id);
-        if (!customer.getEmail().equalsIgnoreCase(request.email()) && customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(request.email())) {
+        String emailToken = ProtectedDataToken.email(request.email());
+        if ((customer.getEmail() == null || !customer.getEmail().equalsIgnoreCase(emailToken))
+                && customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(emailToken)) {
             throw new ConflictException("Email is already registered");
         }
-        Map<String, Object> oldData = Map.of("email", customer.getEmail(), "marketing_consent", customer.getMarketingConsent());
-        customer.setFullName(request.fullName().trim());
-        customer.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
-        customer.setPhone(normalize(request.phone()));
-        customer.setBirthDate(request.birthDate());
+        Map<String, Object> oldData = new HashMap<>();
+        oldData.put("email", customer.getEmail());
+        oldData.put("marketing_consent", customer.getMarketingConsent());
+        customer.setFullName(ProtectedDataToken.customerName(request.fullName()));
+        customer.setEmail(emailToken);
+        customer.setPhone(ProtectedDataToken.phone(request.phone()));
+        customer.setBirthYear(birthYear(request.birthDate()));
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
 
-        if (request.address() != null) {
-            customer.setAddress(addressRepository.save(toAddress(request.address())));
-        }
+        setAddressToken(customer, request.address());
 
         customerAuthRepository.findByCustomer_Id(id).ifPresent(auth -> {
             auth.setLoginEmail(customer.getEmail());
@@ -161,19 +163,19 @@ public class CustomerService {
     public void anonymize(Integer id) {
         Customer customer = customer(id);
         String marker = UUID.randomUUID().toString();
-        customer.setFullName("ANONYMIZED-" + marker);
+        customer.setFullName(ProtectedDataToken.customerName("ANONYMIZED-" + marker));
         customer.setCpf(null);
         customer.setEmail(null);
         customer.setPhone(null);
-        customer.setBirthDate(null);
-        customer.setAddress(null);
+        customer.setBirthYear(null);
+        customer.setAddressToken(null);
         customer.setExternalAuthUid(null);
         customer.setMarketingConsent(false);
         customer.setActive(false);
         customer.setDeletedAt(LocalDateTime.now());
         customer.setUpdatedAt(LocalDateTime.now());
         customerAuthRepository.findByCustomer_Id(id).ifPresent(auth -> {
-            auth.setLoginEmail("anonymous+" + marker + "@mottainai.invalid");
+            auth.setLoginEmail(ProtectedDataToken.email("anonymous+" + marker + "@mottainai.invalid"));
             auth.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
             auth.setRecoveryTokenHash(null);
             auth.setRecoveryExpiresAt(null);
@@ -248,24 +250,14 @@ public class CustomerService {
             .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
     }
 
-    private Address toAddress(CreateAddressRequest request) {
-        Address address = new Address();
-        address.setZipCode(request.zipCode().trim());
-        address.setStreet(request.street().trim());
-        address.setNumber(request.number().trim());
-        address.setComplement(normalize(request.complement()));
-        address.setNeighborhood(request.neighborhood().trim());
-        address.setCity(request.city().trim());
-        address.setState(request.state().trim());
-        return address;
-    }
-
     private void ensureProfileIsAvailable(String cpf, String email) {
-        if (customerRepository.existsByCpfAndDeletedAtIsNull(cpf)) {
+        String cpfToken = ProtectedDataToken.cpf(cpf);
+        String emailToken = ProtectedDataToken.email(email);
+        if (customerRepository.existsByCpfAndDeletedAtIsNull(cpfToken)) {
             throw new ConflictException("CPF is already registered");
         }
-        if (customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(email)
-                || customerAuthRepository.findByLoginEmailIgnoreCase(email).isPresent()) {
+        if (customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(emailToken)
+                || customerAuthRepository.findByLoginEmailIgnoreCase(emailToken).isPresent()) {
             throw new ConflictException("Email is already registered");
         }
     }
@@ -274,19 +266,17 @@ public class CustomerService {
             Boolean marketingConsent, CreateAddressRequest addressRequest, String externalAuthUid,
             LocalDateTime now) {
         Customer customer = new Customer();
-        customer.setFullName(fullName.trim());
-        customer.setCpf(cpf);
-        customer.setEmail(email.trim().toLowerCase(Locale.ROOT));
-        customer.setPhone(normalize(phone));
-        customer.setBirthDate(birthDate);
+        customer.setFullName(ProtectedDataToken.customerName(fullName));
+        customer.setCpf(ProtectedDataToken.cpf(cpf));
+        customer.setEmail(ProtectedDataToken.email(email));
+        customer.setPhone(ProtectedDataToken.phone(phone));
+        customer.setBirthYear(birthYear(birthDate));
         customer.setMarketingConsent(Boolean.TRUE.equals(marketingConsent));
         customer.setExternalAuthUid(externalAuthUid);
         customer.setActive(true);
         customer.setCreatedAt(now);
         customer.setUpdatedAt(now);
-        if (addressRequest != null) {
-            customer.setAddress(addressRepository.save(toAddress(addressRequest)));
-        }
+        setAddressToken(customer, addressRequest);
         customerRepository.save(customer);
 
         LoyaltyAccount account = new LoyaltyAccount();
@@ -301,8 +291,24 @@ public class CustomerService {
         return customer;
     }
 
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private Short birthYear(LocalDate birthDate) {
+        if (birthDate == null) {
+            return null;
+        }
+        int year = birthDate.getYear();
+        if (year < 1900 || year > LocalDate.now().getYear()) {
+            throw new BusinessException("Birth year must be between 1900 and the current year");
+        }
+        return (short) year;
+    }
+
+    private void setAddressToken(Customer customer, CreateAddressRequest address) {
+        if (address == null) {
+            customer.setAddressToken(null);
+            return;
+        }
+        customer.setAddressToken(ProtectedDataToken.address(address.zipCode(), address.street(), address.number(),
+                address.complement(), address.neighborhood(), address.city(), address.state()));
     }
 
     private void validatePassword(String password) {

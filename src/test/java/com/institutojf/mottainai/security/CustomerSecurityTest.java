@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest({ CustomerController.class, CustomerAuthenticationController.class, CustomerProfileController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class })
@@ -89,8 +90,7 @@ class CustomerSecurityTest {
     @Test
     @DisplayName("Should permit customer to read own record")
     void permitsCustomerToReadOwnRecord() throws Exception {
-        when(customerService.find(7)).thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
-                null, null, true, false, null, null, null));
+        when(customerService.find(7)).thenReturn(new CustomerResponse(7, null, true, false, null, null));
         mockMvc.perform(get("/api/v1/customers/7").with(user("ana@example.com").roles("CUSTOMER")))
             .andExpect(status().isOk());
         verify(customerAccess).checkAccess(any(), eq(7));
@@ -102,6 +102,24 @@ class CustomerSecurityTest {
         when(customerService.findAll()).thenReturn(List.of());
         mockMvc.perform(get("/api/v1/customers").with(user("admin@example.com").roles("ADMINISTRATOR")))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Should serialize only the documented operational customer metadata")
+    void exposesOperationalCustomerResponseContract() throws Exception {
+        when(customerService.find(7)).thenReturn(new CustomerResponse(7, (short) 1999, true, false, null, null));
+
+        mockMvc.perform(get("/api/v1/customers/7").with(user("admin@example.com").roles("ADMINISTRATOR")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(7))
+            .andExpect(jsonPath("$.birthYear").value(1999))
+            .andExpect(jsonPath("$.active").value(true))
+            .andExpect(jsonPath("$.marketingConsent").value(false))
+            .andExpect(jsonPath("$.fullName").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.email").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.phone").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.externalAuthUid").doesNotHaveJsonPath());
     }
 
     @Test
@@ -161,8 +179,7 @@ class CustomerSecurityTest {
     @DisplayName("Should create the SQL profile for an authenticated Firebase customer")
     void createsFirebaseCustomerProfile() throws Exception {
         when(customerService.createFirebaseProfile(any(), eq("firebase-uid"), eq("ana@example.com")))
-            .thenReturn(new CustomerResponse(7, "Ana", "***.456.789-**", "ana@example.com",
-                null, null, true, false, null, null, null));
+            .thenReturn(new CustomerResponse(7, null, true, false, null, null));
 
         mockMvc.perform(post("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid").claim("email", "ana@example.com")))
@@ -177,8 +194,7 @@ class CustomerSecurityTest {
     @DisplayName("Should update only the authenticated Firebase customer's editable profile fields")
     void updatesFirebaseCustomerProfile() throws Exception {
         when(customerService.updateFirebaseProfile(any(), eq("firebase-uid")))
-            .thenReturn(new CustomerResponse(7, "Ana Silva", "***.456.789-**", "ana@example.com",
-                "11999999999", null, true, true, null, null, null));
+            .thenReturn(new CustomerResponse(7, null, true, true, null, null));
 
         mockMvc.perform(put("/api/v1/client/auth/profile")
                 .with(jwt().jwt(token -> token.subject("firebase-uid")))

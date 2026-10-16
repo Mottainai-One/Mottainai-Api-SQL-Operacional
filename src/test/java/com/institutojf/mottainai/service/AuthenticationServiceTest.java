@@ -20,6 +20,7 @@ import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.JwtProperties;
 import com.institutojf.mottainai.security.JwtService;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.TokenHashService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -137,7 +138,7 @@ class AuthenticationServiceTest {
         role.setActive(true);
         Employee employee = new Employee();
         employee.setActive(true);
-        employee.setCpf(request.cpf());
+        employee.setCpf(ProtectedDataToken.cpf(request.cpf()));
         employee.setRole(role);
         user.setEmployee(employee);
         user.setActive(true);
@@ -176,7 +177,7 @@ class AuthenticationServiceTest {
         role.setActive(true);
         Employee employee = new Employee();
         employee.setActive(true);
-        employee.setCpf(request.cpf());
+        employee.setCpf(ProtectedDataToken.cpf(request.cpf()));
         employee.setRole(role);
         user.setEmployee(employee);
         user.setActive(true);
@@ -204,7 +205,7 @@ class AuthenticationServiceTest {
         role.setActive(true);
         Employee employee = new Employee();
         employee.setActive(true);
-        employee.setCpf(request.cpf());
+        employee.setCpf(ProtectedDataToken.cpf(request.cpf()));
         employee.setRole(role);
         user.setEmployee(employee);
         user.setActive(true);
@@ -214,7 +215,7 @@ class AuthenticationServiceTest {
             .thenReturn(Optional.of(user));
         doAnswer(invocation -> {
             if (invocation.getArgument(0) == employee) {
-                employee.setCpf("98765432100");
+                employee.setCpf(ProtectedDataToken.cpf("98765432100"));
             }
             return null;
         }).when(entityManager).refresh(any(), eq(LockModeType.PESSIMISTIC_WRITE));
@@ -253,13 +254,14 @@ class AuthenticationServiceTest {
         ForgotPasswordRequest request = new ForgotPasswordRequest("12345678901", "old@mottainai.com");
         AppUser user = user(request.email());
         Employee employee = new Employee();
-        employee.setCpf(request.cpf());
+        employee.setCpf(ProtectedDataToken.cpf(request.cpf()));
         user.setEmployee(employee);
         when(rlsContextService.bootstrapByCpf(request.cpf())).thenReturn(true);
         when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(request.email()))
             .thenReturn(Optional.of(user));
         when(appUserRepository.findByIdWithWriteLock(user.getId())).thenReturn(Optional.of(user));
-        when(appUserRepository.matchesCurrentIdentity(user.getId(), request.email(), request.cpf(), true))
+        when(appUserRepository.matchesCurrentIdentity(user.getId(), request.email(),
+                ProtectedDataToken.cpf(request.cpf()), true))
             .thenReturn(false);
         authenticationService.requestPasswordReset(request);
         verify(passwordResetTokenRepository, never()).save(any());
@@ -427,16 +429,17 @@ class AuthenticationServiceTest {
     @Test
     @DisplayName("Should send a recovery link only after the token transaction commits")
     void shouldSendRecoveryLinkAfterCommit() {
-        ForgotPasswordRequest request = new ForgotPasswordRequest("12345678901", "user@mottainai.com");
-        AppUser user = user(request.email());
+        ForgotPasswordRequest request = new ForgotPasswordRequest("12345678901", "User@Mottainai.com");
+        AppUser user = user("user@mottainai.com");
         Employee employee = new Employee();
-        employee.setCpf(request.cpf());
+        employee.setCpf(ProtectedDataToken.cpf(request.cpf()));
         user.setEmployee(employee);
         when(rlsContextService.bootstrapByCpf(request.cpf())).thenReturn(true);
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(request.email()))
+        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("user@mottainai.com"))
             .thenReturn(Optional.of(user));
         when(appUserRepository.findByIdWithWriteLock(user.getId())).thenReturn(Optional.of(user));
-        when(appUserRepository.matchesCurrentIdentity(user.getId(), request.email(), request.cpf(), true))
+        when(appUserRepository.matchesCurrentIdentity(user.getId(), "user@mottainai.com",
+                ProtectedDataToken.cpf(request.cpf()), true))
             .thenReturn(true);
         when(passwordResetTokenRepository.findFirstByUser_IdAndTokenTypeAndUsedAtIsNullOrderByCreatedAtDesc(
                 user.getId(), PasswordTokenType.PASSWORD_RESET))
@@ -448,7 +451,7 @@ class AuthenticationServiceTest {
         verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
         verify(passwordResetEmailService, never()).sendRecoveryLink(any(), any());
         TransactionSynchronizationUtils.triggerAfterCommit();
-        verify(passwordResetEmailService).sendRecoveryLink(request.email(), "recovery-token");
+        verify(passwordResetEmailService).sendRecoveryLink("user@mottainai.com", "recovery-token");
     }
 
     private AppUser user(String email) {

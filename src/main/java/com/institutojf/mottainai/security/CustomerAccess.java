@@ -45,7 +45,8 @@ public class CustomerAccess {
                 .filter(customer -> Boolean.TRUE.equals(customer.getActive()) && customer.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
         }
-        return customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(authentication.getName())
+        return customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(
+                ProtectedDataToken.externalAuthUid(authentication.getName()))
             .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
     }
 

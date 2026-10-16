@@ -30,7 +30,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
 
     @Query("""
                     SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM AppUser u JOIN u.employee e
-                    WHERE u.id = :id AND LOWER(u.email) = LOWER(:email) AND e.cpf = :cpf
+                    WHERE u.id = :id AND LOWER(u.email) = LOWER(:email)
+                    AND u.cpf = :cpf AND e.cpf = :cpf
                     AND u.active = :active AND e.active = :active
                     AND u.deletedAt IS NULL AND e.deletedAt IS NULL
             """)

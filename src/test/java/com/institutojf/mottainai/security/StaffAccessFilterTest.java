@@ -41,6 +41,9 @@ class StaffAccessFilterTest {
     @Mock
     private CustomerAuthRepository customerAuthRepository;
 
+    @Mock
+    private FirebaseProperties firebaseProperties;
+
     @InjectMocks
     private StaffAccessFilter filter;
 
@@ -77,16 +80,58 @@ class StaffAccessFilterTest {
     }
 
     @Test
+    @DisplayName("Should validate an operational Firebase staff token")
+    void shouldAllowValidFirebaseStaffSession() throws Exception {
+        when(firebaseProperties.projectId()).thenReturn("mottainai-operational");
+        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties);
+        Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
+                Map.of("sub", "staff-uid", "email", "operator@mottainai.com",
+                        "iss", "https://securetoken.google.com/mottainai-operational"));
+        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+        when(rlsContextService.validateFirebaseStaffToken(jwt)).thenReturn(true);
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, chain);
+
+        verify(rlsContextService).validateFirebaseStaffToken(jwt);
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(customerAuthRepository);
+    }
+
+    @Test
+    @DisplayName("Should reject Firebase staff when operational account validation fails")
+    void shouldRejectInvalidFirebaseStaffSession() throws Exception {
+        when(firebaseProperties.projectId()).thenReturn("mottainai-operational");
+        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties);
+        Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
+                Map.of("sub", "staff-uid", "iss", "https://securetoken.google.com/mottainai-operational"));
+        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(new MockHttpServletRequest(), response, chain);
+
+        assertEquals(401, response.getStatus());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(rlsContextService).validateFirebaseStaffToken(jwt);
+        verifyNoInteractions(chain, customerAuthRepository);
+    }
+
+    @Test
     @DisplayName("Should allow a customer without a staff session")
     void shouldAllowCustomerWithoutStaffSessionBootstrap() throws Exception {
-        Jwt jwt = token();
+        String loginToken = ProtectedDataToken.email("ana@example.com");
+        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
+                Map.of("sub", loginToken, "use", "access"));
         Customer customer = new Customer();
         customer.setActive(true);
         CustomerAuth customerAuth = new CustomerAuth();
         customerAuth.setActive(true);
         customerAuth.setCustomer(customer);
         customerAuth.setPasswordChangedAt(LocalDateTime.now().minusMinutes(1));
-        when(customerAuthRepository.findByLoginEmailIgnoreCase("admin@example.com"))
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(loginToken))
             .thenReturn(java.util.Optional.of(customerAuth));
         SecurityContextHolder.getContext()
             .setAuthentication(new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
