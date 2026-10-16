@@ -23,6 +23,7 @@ import com.institutojf.mottainai.repository.EmployeeRoleRepository;
 import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.TokenHashService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -79,30 +80,33 @@ public class EmployeeService {
     @Transactional
     public EmployeeResponse create(CreateEmployeeRequest request, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
+        String email = StaffContactData.email(request.email());
+        String cpfToken = ProtectedDataToken.cpf(request.cpf());
         RetailStore store = storeRepository.findByIdAndActiveTrueAndDeletedAtIsNull(request.storeId())
             .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
         if (!store.getCompany().getId().equals(requestingUser.getEmployee().getStore().getCompany().getId())) {
             throw new ResourceNotFoundException("Store not found");
         }
-        if (employeeRepository.existsByCpf(request.cpf())) {
+        if (employeeRepository.existsByCpf(cpfToken)) {
             throw new ConflictException("CPF already exists");
         }
-        if (appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(request.email())) {
+        if (appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(email)) {
             throw new ConflictException("Email already exists");
         }
         Employee employee = new Employee();
         employee.setStore(store);
         employee.setRole(role(request.roleId()));
-        employee.setName(request.name());
-        employee.setCpf(request.cpf());
-        employee.setEmail(request.email());
-        employee.setPhone(request.phone());
+        employee.setName(StaffContactData.name(request.name()));
+        employee.setCpf(cpfToken);
+        employee.setEmail(email);
+        employee.setPhone(StaffContactData.phone(request.phone()));
         employee.setHireDate(request.hireDate());
         employee.setActive(false);
         employee = employeeRepository.saveAndFlush(employee);
         AppUser user = new AppUser();
         user.setEmployee(employee);
-        user.setEmail(request.email());
+        user.setEmail(email);
+        user.setCpf(cpfToken);
         user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
         user.setPasswordSet(false);
         user.setActive(false);
@@ -144,21 +148,22 @@ public class EmployeeService {
         AppUser requestingUser = requestingUser(requestingUserEmail);
         AppUser user = target(employeeId, requestingUser, true);
         Employee employee = user.getEmployee();
-        boolean emailChanged = !user.getEmail().equalsIgnoreCase(request.email());
+        String email = StaffContactData.email(request.email());
+        boolean emailChanged = !user.getEmail().equalsIgnoreCase(email);
         boolean roleChanged = request.roleId() != null && !request.roleId().equals(employee.getRole().getId());
 
-        if (emailChanged && appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(request.email())) {
+        if (emailChanged && appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(email)) {
             throw new ConflictException("Email already exists");
         }
         Map<String, Object> oldData = employeeAuditData(employee);
         String oldEmail = user.getEmail();
-        employee.setName(request.name());
-        employee.setEmail(request.email());
-        employee.setPhone(request.phone());
+        employee.setName(StaffContactData.name(request.name()));
+        employee.setEmail(email);
+        employee.setPhone(StaffContactData.phone(request.phone()));
         if (request.roleId() != null) {
             employee.setRole(role(request.roleId()));
         }
-        user.setEmail(request.email());
+        user.setEmail(email);
         employeeRepository.saveAndFlush(employee);
         appUserRepository.save(user);
         auditLogRepository.record("employee", "UPDATE", employeeId.toString(), requestingUser.getId(), oldData,
@@ -278,7 +283,7 @@ public class EmployeeService {
     }
 
     private AppUser requestingUser(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(email)
+        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(StaffContactData.email(email))
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 

@@ -4,6 +4,7 @@ import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.FirebaseStaffRole;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,17 +27,17 @@ public class RlsContextService {
 
     // Inicializa o contexto da transação para o login por CPF
     public boolean bootstrapByCpf(String cpf) {
-        return bootstrap(cpf, "CPF");
+        return bootstrap(ProtectedDataToken.cpf(cpf), "CPF");
     }
 
     // Permite consultar um convite pendente antes da ativação da conta
     public boolean bootstrapInvitedByCpf(String cpf) {
-        return bootstrap(cpf, "INVITED_CPF");
+        return bootstrap(ProtectedDataToken.cpf(cpf), "INVITED_CPF");
     }
 
     // Reconstitui o contexto RLS do funcionário pelo email do JWT
     public boolean bootstrapByEmail(String email) {
-        return bootstrap(email, "EMAIL");
+        return bootstrap(StaffContactData.email(email), "EMAIL");
     }
 
     // Localiza o dono de um token válido e define o contexto RLS
@@ -60,7 +61,8 @@ public class RlsContextService {
         catch (RuntimeException exception) {
             return false;
         }
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(jwt.getSubject())
+        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(
+                StaffContactData.email(jwt.getSubject()))
             .filter(user -> isCurrentUser(user, jwt, sessionId))
             .isPresent();
     }
@@ -68,7 +70,7 @@ public class RlsContextService {
     @Transactional
     public boolean validateFirebaseStaffToken(Jwt jwt) {
         String firebaseUid = jwt.getSubject();
-        String email = jwt.getClaimAsString("email");
+        String email = StaffContactData.email(jwt.getClaimAsString("email"));
         if (firebaseUid == null || firebaseUid.isBlank() || email == null || email.isBlank()
                 || !Boolean.TRUE.equals(jwt.getClaim("email_verified"))
                 || FirebaseStaffRole.authoritiesFor(jwt.getClaimAsString("role")).isEmpty()

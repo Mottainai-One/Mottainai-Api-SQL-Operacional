@@ -43,7 +43,7 @@ class CustomerAccessTest {
         TestingAuthenticationToken authentication = new TestingAuthenticationToken("firebase-uid", null);
         authentication.setAuthenticated(true);
 
-        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull("firebase-uid"))
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(ProtectedDataToken.externalAuthUid("firebase-uid")))
             .thenReturn(Optional.of(customer));
         Customer result = customerAccess.currentCustomer(authentication);
 
@@ -56,7 +56,7 @@ class CustomerAccessTest {
     void shouldRejectUnknownFirebaseSubject() {
         TestingAuthenticationToken authentication = new TestingAuthenticationToken("firebase-uid", null);
         authentication.setAuthenticated(true);
-        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull("firebase-uid"))
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(ProtectedDataToken.externalAuthUid("firebase-uid")))
             .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -69,7 +69,7 @@ class CustomerAccessTest {
     void shouldRejectFirebaseSubjectMatchingLoginEmail() {
         TestingAuthenticationToken authentication = new TestingAuthenticationToken("ana@example.com", null);
         authentication.setAuthenticated(true);
-        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull("ana@example.com"))
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(ProtectedDataToken.externalAuthUid("ana@example.com")))
             .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> customerAccess.currentCustomer(authentication));
@@ -81,12 +81,12 @@ class CustomerAccessTest {
     void shouldResolveLocalCustomerFromLoginAccount() {
         Customer customer = new Customer();
         customer.setId(7);
-        customer.setEmail("contact@example.com");
+        customer.setEmail(ProtectedDataToken.email("contact@example.com"));
         customer.setActive(true);
         CustomerAuth account = new CustomerAuth();
         account.setCustomer(customer);
-        TestingAuthenticationToken authentication = new TestingAuthenticationToken("login@example.com", null, "ROLE_CUSTOMER");
-        when(customerAuthRepository.findByLoginEmailIgnoreCase("login@example.com"))
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(ProtectedDataToken.email("login@example.com"), null, "ROLE_CUSTOMER");
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(ProtectedDataToken.email("login@example.com")))
             .thenReturn(Optional.of(account));
 
         assertEquals(7, customerAccess.currentCustomer(authentication).getId());
@@ -98,8 +98,8 @@ class CustomerAccessTest {
     void shouldRejectInactiveLocalLoginAccount() {
         CustomerAuth account = new CustomerAuth();
         account.setActive(false);
-        TestingAuthenticationToken authentication = new TestingAuthenticationToken("login@example.com", null, "ROLE_CUSTOMER");
-        when(customerAuthRepository.findByLoginEmailIgnoreCase("login@example.com"))
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(ProtectedDataToken.email("login@example.com"), null, "ROLE_CUSTOMER");
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(ProtectedDataToken.email("login@example.com")))
             .thenReturn(Optional.of(account));
 
         assertThrows(ResourceNotFoundException.class, () -> customerAccess.currentCustomer(authentication));
@@ -143,8 +143,8 @@ class CustomerAccessTest {
         customer.setActive(true);
         CustomerAuth account = new CustomerAuth();
         account.setCustomer(customer);
-        TestingAuthenticationToken authentication = new TestingAuthenticationToken("login@example.com", null, "ROLE_CUSTOMER");
-        when(customerAuthRepository.findByLoginEmailIgnoreCase("login@example.com")).thenReturn(Optional.of(account));
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(ProtectedDataToken.email("login@example.com"), null, "ROLE_CUSTOMER");
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(ProtectedDataToken.email("login@example.com"))).thenReturn(Optional.of(account));
 
         assertDoesNotThrow(() -> customerAccess.checkAccess(authentication, 7));
         assertThrows(AccessDeniedException.class, () -> customerAccess.checkAccess(authentication, 8));
@@ -158,7 +158,7 @@ class CustomerAccessTest {
         customer.setId(7);
         TestingAuthenticationToken authentication = new TestingAuthenticationToken("firebase-uid", null);
         authentication.setAuthenticated(true);
-        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull("firebase-uid"))
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(ProtectedDataToken.externalAuthUid("firebase-uid")))
             .thenReturn(Optional.of(customer));
 
         assertDoesNotThrow(() -> customerAccess.checkAccess(authentication, 7));
@@ -169,8 +169,8 @@ class CustomerAccessTest {
     @Test
     @DisplayName("Should reject unknown local account without looking up a Firebase UID")
     void shouldRejectUnknownLocalAccountWithoutFirebaseFallback() {
-        TestingAuthenticationToken authentication = new TestingAuthenticationToken("login@example.com", null, "ROLE_CUSTOMER");
-        when(customerAuthRepository.findByLoginEmailIgnoreCase("login@example.com"))
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(ProtectedDataToken.email("login@example.com"), null, "ROLE_CUSTOMER");
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(ProtectedDataToken.email("login@example.com")))
             .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> customerAccess.currentCustomer(authentication));

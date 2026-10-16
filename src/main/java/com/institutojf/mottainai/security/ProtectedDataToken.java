@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
+import java.util.StringJoiner;
+import java.util.function.UnaryOperator;
 
 /** Produces the deterministic tokens required by the protected operational schema. */
 public final class ProtectedDataToken {
@@ -12,50 +14,53 @@ public final class ProtectedDataToken {
     }
 
     public static String customerName(String value) {
-        return token("CUS", normalized(value));
+        return token("CUS", value, ProtectedDataToken::normalized);
     }
 
     public static String cpf(String value) {
-        return token("CPF", value == null ? null : value.replaceAll("\\D", ""));
+        return token("CPF", value, text -> text.replaceAll("\\D", ""));
     }
 
     public static String email(String value) {
-        return token("EMAIL", value == null ? null : value.trim().toLowerCase(Locale.ROOT));
+        return token("EMAIL", value, text -> normalized(text).toLowerCase(Locale.ROOT));
     }
 
     public static String phone(String value) {
-        return token("PHONE", value == null ? null : value.replaceAll("\\D", ""));
+        return token("PHONE", value, text -> text.replaceAll("\\D", ""));
     }
 
     public static String externalAuthUid(String value) {
-        return token("AUTH", normalized(value));
+        return token("AUTH", value, ProtectedDataToken::normalized);
     }
 
     public static String address(String zipCode, String street, String number, String complement,
             String neighborhood, String city, String state) {
-        StringBuilder value = new StringBuilder();
+        // Match PostgreSQL concat_ws: skip NULL, preserve empty parts and spaces.
+        StringJoiner value = new StringJoiner("|");
         for (String part : new String[] { zipCode, street, number, complement, neighborhood, city, state }) {
             if (part == null) {
                 continue;
             }
-            if (!value.isEmpty()) {
-                value.append('|');
-            }
-            value.append(part.trim());
+            value.add(part);
         }
-        return token("ADDR", value.toString());
+        return token("ADDR", value.toString(), UnaryOperator.identity());
     }
 
     private static String normalized(String value) {
-        return value == null ? null : value.trim();
+        // PostgreSQL btrim(text) removes spaces, not every ASCII control character.
+        return value == null ? null : value.replaceAll("^ +| +$", "");
     }
 
-    private static String token(String prefix, String value) {
+    private static String token(String prefix, String value, UnaryOperator<String> normalize) {
         if (value == null || value.isBlank()) {
             return null;
         }
         if (value.matches("^" + prefix + "_SHA256_[A-Fa-f0-9]{64}$")) {
             return value.toUpperCase(Locale.ROOT);
+        }
+        value = normalize.apply(value);
+        if (value.isEmpty()) {
+            return null;
         }
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));

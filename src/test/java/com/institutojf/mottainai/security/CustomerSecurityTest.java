@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest({ CustomerController.class, CustomerAuthenticationController.class, CustomerProfileController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class })
@@ -101,6 +102,24 @@ class CustomerSecurityTest {
         when(customerService.findAll()).thenReturn(List.of());
         mockMvc.perform(get("/api/v1/customers").with(user("admin@example.com").roles("ADMINISTRATOR")))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Should serialize only the documented operational customer metadata")
+    void exposesOperationalCustomerResponseContract() throws Exception {
+        when(customerService.find(7)).thenReturn(new CustomerResponse(7, (short) 1999, true, false, null, null));
+
+        mockMvc.perform(get("/api/v1/customers/7").with(user("admin@example.com").roles("ADMINISTRATOR")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(7))
+            .andExpect(jsonPath("$.birthYear").value(1999))
+            .andExpect(jsonPath("$.active").value(true))
+            .andExpect(jsonPath("$.marketingConsent").value(false))
+            .andExpect(jsonPath("$.fullName").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.email").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.phone").doesNotHaveJsonPath())
+            .andExpect(jsonPath("$.externalAuthUid").doesNotHaveJsonPath());
     }
 
     @Test

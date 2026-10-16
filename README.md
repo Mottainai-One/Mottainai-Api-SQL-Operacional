@@ -26,7 +26,9 @@ A configuração padrão mantém o Flyway desabilitado e valida o mapeamento JPA
 
 As migrations V1–V9 são históricas e não representam o schema operacional completo. A V10 depende das tabelas operacionais, de colunas usadas nas views e da role `mottainai_api`; não deve ser aplicada sobre um banco vazio provisionado apenas pelas migrations antigas. O perfil `local` aponta para `classpath:db/migration-local`, atualmente sem scripts, e não aplica a V10 de `db/migration`.
 
-A integração do app cliente também depende de `mottainai.customer.external_auth_uid`, anulável para cadastros SQL antigos e único entre UIDs Firebase vinculados. Essa coluna não é criada pela API em runtime: confirme ou versione a alteração no repositório `Mottainai-Banco-Operacional` antes de conectar o ambiente de teste.
+A integração do app cliente também depende de `mottainai.customer.external_auth_uid`, anulável para cadastros SQL antigos e único entre identidades Firebase vinculadas. No schema protegido, essa coluna armazena o token SHA-256 do UID, não o UID em claro. Essa coluna não é criada pela API em runtime: confirme a estrutura no instalador fornecido pela equipe de dados antes de conectar o ambiente de teste.
+
+O contrato de resposta de clientes foi reduzido aos dados disponíveis no schema protegido: `id`, `birthYear`, `active`, `marketingConsent`, `createdAt` e `updatedAt`. Nome, CPF, e-mail, telefone e endereço não são recuperáveis dos tokens e não são devolvidos. Essa mudança exige adaptação dos consumidores; veja [contrato de cliente e transição](docs/PROTECTED_CUSTOMER_CONTRACT.md).
 
 Antes de publicar a API, a equipe de dados deve disponibilizar o schema compatível e as funções/permissões acordadas. Só depois devem ser aplicadas as views, índices e funções necessárias aos repositories. A inicialização da API valida o resultado; ativar Flyway não substitui esse provisionamento. Os ajustes de RLS, autenticação e sessões precisam ser validados em PostgreSQL com a role real da API, sem usar proprietário, superusuário ou `BYPASSRLS`.
 
@@ -64,7 +66,7 @@ As rotas operacionais exigem JWT da API. Escritas exigem `ADMINISTRATOR` ou `MAN
 
 ### Cliente (fidelidade)
 
-As rotas em `/api/v1/client/**` e `/api/v1/customer-catalog/**` exigem um Firebase ID token. O `sub` do token deve corresponder a `customer.external_auth_uid` para operações que dependem de um cliente SQL ativo; o catálogo só exige a identidade Firebase válida.
+As rotas em `/api/v1/client/**` e `/api/v1/customer-catalog/**` exigem um Firebase ID token. A API transforma o `sub` em token protegido para consultar `customer.external_auth_uid` nas operações que dependem de um cliente SQL ativo; o catálogo só exige a identidade Firebase válida.
 
 ```http
 Authorization: Bearer <firebase-id-token>

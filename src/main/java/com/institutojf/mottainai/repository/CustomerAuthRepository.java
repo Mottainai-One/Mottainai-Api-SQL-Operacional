@@ -17,10 +17,8 @@ public interface CustomerAuthRepository extends JpaRepository<CustomerAuth, Inte
     Optional<CustomerAuth> findByLoginEmailForUpdate(@Param("email") String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select auth from CustomerAuth auth join fetch auth.customer where auth.recoveryTokenHash = :hash")
-    Optional<CustomerAuth> findByRecoveryTokenHashForUpdate(@Param("hash") String hash);
-
-    Optional<CustomerAuth> findByRecoveryTokenHash(String hash);
+    @Query("select auth from CustomerAuth auth join fetch auth.customer where auth.id = :id")
+    Optional<CustomerAuth> findByIdForUpdate(@Param("id") Integer id);
 
     Optional<CustomerAuth> findByCustomer_Id(Integer customerId);
 

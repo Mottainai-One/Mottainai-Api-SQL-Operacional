@@ -12,6 +12,7 @@ import com.institutojf.mottainai.repository.EmployeeRepository;
 import com.institutojf.mottainai.repository.EmployeeRoleRepository;
 import com.institutojf.mottainai.mapper.RetailStoreMapper;
 import com.institutojf.mottainai.repository.AuditLogRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,7 +58,7 @@ class UserProfileServiceTest {
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com")).thenReturn(Optional.of(user));
         var response = service.me("admin@test.com");
         assertEquals("admin@test.com", response.email());
-        assertEquals("***.***.***-01", response.cpf());
+        assertEquals("***", response.cpf());
         assertEquals("ADMINISTRATOR", response.role());
     }
 
@@ -69,7 +70,8 @@ class UserProfileServiceTest {
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com"))
             .thenReturn(Optional.of(requester));
         when(appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull("new@test.com")).thenReturn(false);
-        when(employeeRepository.existsByCpf("12345678901")).thenReturn(false);
+        String cpfToken = ProtectedDataToken.cpf("12345678901");
+        when(employeeRepository.existsByCpf(cpfToken)).thenReturn(false);
         when(employeeRoleRepository.findByNameIgnoreCaseAndActiveTrueAndDeletedAtIsNull("OPERATOR"))
             .thenReturn(Optional.of(role));
         when(passwordEncoder.encode(anyString())).thenReturn("$2a$hash");
@@ -84,16 +86,34 @@ class UserProfileServiceTest {
             return user;
         });
         var response = service.invite(
-                new InviteStoreUserRequest("New User", "12345678901", "new@test.com", null, "OPERATOR"),
+                new InviteStoreUserRequest(" New User ", "12345678901", " New@Test.com ", " 555-0100 ", "OPERATOR"),
                 "admin@test.com");
         assertFalse(response.active());
         assertTrue(response.passwordSetupRequired());
         assertFalse(response.emailNotificationSent());
+        assertEquals("New User", response.user().name());
+        assertEquals("new@test.com", response.user().email());
+        assertEquals("555-0100", response.user().phone());
+        assertEquals("***", response.user().cpf());
         verify(passwordEncoder).encode(anyString());
         verify(appUserRepository).save(argThat(
-                user -> !user.getActive() && user.getEmployee().getStore() == requester.getEmployee().getStore()));
-        verify(auditLogRepository).record(eq("employee"), eq("INSERT"), eq("10"), eq(1), isNull(), any());
-        verify(auditLogRepository).record(eq("app_user"), eq("INSERT"), eq("20"), eq(1), isNull(), any());
+                user -> !user.getActive() && user.getEmployee().getStore() == requester.getEmployee().getStore()
+                        && user.getEmail().equals("new@test.com")
+                        && user.getEmployee().getEmail().equals("new@test.com")
+                        && user.getCpf().equals(cpfToken)
+                        && user.getEmployee().getCpf().equals(cpfToken)
+                        && user.getEmployee().getName().equals("New User")
+                        && user.getEmployee().getPhone().equals("555-0100")));
+        verify(auditLogRepository).record(eq("employee"), eq("INSERT"), eq("10"), eq(1), isNull(),
+                argThat(data -> data instanceof java.util.Map<?, ?> values
+                        && "***".equals(values.get("cpf_masked"))
+                        && !values.containsValue("12345678901")
+                        && !values.containsValue(cpfToken)));
+        verify(auditLogRepository).record(eq("app_user"), eq("INSERT"), eq("20"), eq(1), isNull(),
+                argThat(data -> data instanceof java.util.Map<?, ?> values
+                        && "***".equals(values.get("cpf_masked"))
+                        && !values.containsValue("12345678901")
+                        && !values.containsValue(cpfToken)));
     }
 
     @Test
@@ -137,12 +157,13 @@ class UserProfileServiceTest {
         employee.setId(id + 100);
         employee.setStore(store);
         employee.setName("User");
-        employee.setCpf("12345678901");
+        employee.setCpf(ProtectedDataToken.cpf("12345678901"));
         employee.setActive(active);
         employee.setRole(role(roleName));
         AppUser user = new AppUser();
         user.setId(id);
         user.setEmail(id == 1 ? "admin@test.com" : "user@test.com");
+        user.setCpf(ProtectedDataToken.cpf("12345678901"));
         user.setEmployee(employee);
         user.setActive(active);
         return user;

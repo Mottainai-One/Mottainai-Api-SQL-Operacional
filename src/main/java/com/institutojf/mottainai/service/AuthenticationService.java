@@ -20,6 +20,7 @@ import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.JwtProperties;
 import com.institutojf.mottainai.security.JwtService;
 import com.institutojf.mottainai.security.TokenHashService;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
@@ -102,7 +103,7 @@ public class AuthenticationService {
             throw new BadCredentialsException("Invalid CPF or password");
         }
         entityManager.refresh(employee, LockModeType.PESSIMISTIC_WRITE);
-        if (!request.cpf().equals(employee.getCpf()) || !Boolean.TRUE.equals(user.getActive())
+        if (!ProtectedDataToken.cpf(request.cpf()).equals(employee.getCpf()) || !Boolean.TRUE.equals(user.getActive())
                 || user.getDeletedAt() != null || !Boolean.TRUE.equals(employee.getActive())
                 || employee.getDeletedAt() != null || employee.getRole() == null
                 || !Boolean.TRUE.equals(employee.getRole().getActive()) || employee.getRole().getDeletedAt() != null
@@ -159,16 +160,16 @@ public class AuthenticationService {
     public void requestPasswordReset(ForgotPasswordRequest request) {
         if (!rlsContextService.bootstrapByCpf(request.cpf())) {
             if (rlsContextService.bootstrapInvitedByCpf(request.cpf())) {
-                appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(request.email())
-                    .filter(user -> request.cpf().equals(user.getEmployee().getCpf())
+                appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(StaffContactData.email(request.email()))
+                    .filter(user -> ProtectedDataToken.cpf(request.cpf()).equals(user.getEmployee().getCpf())
                             && !Boolean.TRUE.equals(user.getActive())
                             && invitationTokenRepository.hasPendingForUser(user.getId()))
                     .ifPresent(user -> renewInvitation(user, request));
             }
             return;
         }
-        appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(request.email())
-            .filter(user -> request.cpf().equals(user.getEmployee().getCpf()))
+        appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(StaffContactData.email(request.email()))
+            .filter(user -> ProtectedDataToken.cpf(request.cpf()).equals(user.getEmployee().getCpf()))
             .ifPresent(user -> createRecoveryToken(user, request));
     }
 
@@ -234,7 +235,7 @@ public class AuthenticationService {
 
     @Transactional
     public void changePassword(ChangePasswordRequest request, String email) {
-        AppUser user = appUserRepository.findActiveByEmailWithWriteLock(email)
+        AppUser user = appUserRepository.findActiveByEmailWithWriteLock(StaffContactData.email(email))
             .orElseThrow(() -> new BusinessException("User is unavailable"));
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
             throw new BusinessException("Current password is incorrect");
@@ -251,7 +252,8 @@ public class AuthenticationService {
     private void createRecoveryToken(AppUser user, ForgotPasswordRequest request) {
         appUserRepository.findByIdWithWriteLock(user.getId())
             .orElseThrow(() -> new BusinessException("User is unavailable"));
-        if (!appUserRepository.matchesCurrentIdentity(user.getId(), request.email(), request.cpf(), true)) {
+        if (!appUserRepository.matchesCurrentIdentity(user.getId(), StaffContactData.email(request.email()),
+                ProtectedDataToken.cpf(request.cpf()), true)) {
             return;
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -274,7 +276,7 @@ public class AuthenticationService {
         String tokenHash = token.getTokenHash();
         afterCommit(() -> {
             try {
-                passwordResetEmailService.sendRecoveryLink(request.email(), rawToken);
+                passwordResetEmailService.sendRecoveryLink(StaffContactData.email(request.email()), rawToken);
             }
             catch (MailException exception) {
                 log.error("Recovery email delivery failed for user {}", user.getId(), exception);
@@ -293,7 +295,8 @@ public class AuthenticationService {
     private void renewInvitation(AppUser user, ForgotPasswordRequest request) {
         appUserRepository.findByIdWithWriteLock(user.getId())
             .orElseThrow(() -> new BusinessException("User is unavailable"));
-        if (!appUserRepository.matchesCurrentIdentity(user.getId(), request.email(), request.cpf(), false)
+        if (!appUserRepository.matchesCurrentIdentity(user.getId(), StaffContactData.email(request.email()),
+                ProtectedDataToken.cpf(request.cpf()), false)
                 || !invitationTokenRepository.hasPendingForUser(user.getId())) {
             return;
         }
@@ -307,7 +310,7 @@ public class AuthenticationService {
                 OffsetDateTime.now(ZoneOffset.UTC).plusHours(48));
         afterCommit(() -> {
             try {
-                passwordResetEmailService.sendInvitationLink(request.email(), rawToken);
+                passwordResetEmailService.sendInvitationLink(StaffContactData.email(request.email()), rawToken);
             }
             catch (MailException exception) {
                 log.error("Invitation email delivery failed for user {}", user.getId(), exception);
@@ -329,7 +332,7 @@ public class AuthenticationService {
 
     // Busca somente a conta ativa associada ao email autenticado
     private AppUser activeUser(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(email)
+        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(StaffContactData.email(email))
             .orElseThrow(() -> new BusinessException("User is unavailable"));
     }
 

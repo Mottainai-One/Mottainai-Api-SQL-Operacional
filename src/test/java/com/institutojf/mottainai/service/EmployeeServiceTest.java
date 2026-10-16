@@ -20,6 +20,7 @@ import com.institutojf.mottainai.repository.EmployeeRoleRepository;
 import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.TokenHashService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
@@ -277,7 +279,7 @@ class EmployeeServiceTest {
         AppUser invitedEmployee = user(2, "old@example.com", "OPERATOR", false);
 
         invitedEmployee.getEmployee().setName("Employee");
-        invitedEmployee.getEmployee().setCpf("12345678901");
+        invitedEmployee.getEmployee().setCpf(ProtectedDataToken.cpf("12345678901"));
         invitedEmployee.getEmployee().setEmail("old@example.com");
 
         when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("admin@example.com"))
@@ -286,7 +288,10 @@ class EmployeeServiceTest {
         when(tokenHashService.newToken()).thenReturn("new-invite-token");
         when(tokenHashService.hash("new-invite-token")).thenReturn("new-token-hash");
         TransactionSynchronizationManager.initSynchronization();
-        service.update(2, new UpdateEmployeeRequest("Employee", "new@example.com", null, null), "admin@example.com");
+        service.update(2, new UpdateEmployeeRequest("Employee", " New@Example.com ", null, null), "admin@example.com");
+
+        assertEquals("new@example.com", invitedEmployee.getEmail());
+        assertEquals("new@example.com", invitedEmployee.getEmployee().getEmail());
 
         verify(passwordResetTokenRepository).invalidateUnusedForUser(eq(2), any(OffsetDateTime.class));
         verify(invitationRepository).invalidateUnusedForUser(2);
@@ -300,7 +305,7 @@ class EmployeeServiceTest {
         EmployeeService service = new EmployeeService(appUserRepository, employeeRepository, roleRepository, storeRepository, activityRepository, invitationRepository, passwordResetTokenRepository, sessionRepository, auditLogRepository, emailService, passwordEncoder, tokenHashService, emailFailureService, entityManager);
         AppUser administrator = user(1, "admin@example.com", "ADMINISTRATOR", true);
         AppUser employee = user(2, "employee@example.com", "OPERATOR", true);
-        employee.getEmployee().setCpf("12345678901");
+        employee.getEmployee().setCpf(ProtectedDataToken.cpf("12345678901"));
         employee.getEmployee().getRole().setId(3);
 
         EmployeeRole nextRole = new EmployeeRole();
@@ -328,7 +333,7 @@ class EmployeeServiceTest {
         EmployeeService service = new EmployeeService(appUserRepository, employeeRepository, roleRepository, storeRepository, activityRepository, invitationRepository, passwordResetTokenRepository, sessionRepository, auditLogRepository, emailService, passwordEncoder, tokenHashService, emailFailureService, entityManager);
         AppUser administrator = user(1, "admin@example.com", "ADMINISTRATOR", true);
         AppUser employee = user(2, "employee@example.com", "OPERATOR", true);
-        employee.getEmployee().setCpf("12345678901");
+        employee.getEmployee().setCpf(ProtectedDataToken.cpf("12345678901"));
         employee.getEmployee().getRole().setId(3);
         employee.getEmployee().getRole().setActive(true);
 
@@ -388,10 +393,19 @@ class EmployeeServiceTest {
             return savedUser;
         });
         TransactionSynchronizationManager.initSynchronization();
-        var response = service.create(new CreateEmployeeRequest("Employee", "12345678901", "employee@example.com", null,
+        var response = service.create(new CreateEmployeeRequest("  Employee  ", "12345678901", " Employee@Example.com ", "  555-0100  ",
                 3, 1, LocalDate.now()), administrator.getEmail());
         assertFalse(response.active());
+        assertEquals("Employee", response.name());
+        assertEquals("employee@example.com", response.email());
+        assertEquals("555-0100", response.phone());
+        assertEquals("***", response.cpf());
 
+        String cpfToken = ProtectedDataToken.cpf("12345678901");
+        verify(employeeRepository).existsByCpf(cpfToken);
+        verify(employeeRepository).saveAndFlush(argThat(employee -> cpfToken.equals(employee.getCpf())));
+        verify(appUserRepository).saveAndFlush(argThat(user -> cpfToken.equals(user.getCpf())
+                && cpfToken.equals(user.getEmployee().getCpf())));
         verify(invitationRepository).create(eq(2), eq("invitation-hash"), any(OffsetDateTime.class));
         verify(emailService, never()).sendInvitationLink(any(), any());
         TransactionSynchronizationUtils.triggerAfterCommit();

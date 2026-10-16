@@ -112,15 +112,17 @@ public class CustomerService {
     public CustomerResponse update(Integer id, UpdateCustomerRequest request) {
         Customer customer = customer(id);
         String emailToken = ProtectedDataToken.email(request.email());
-        if (!customer.getEmail().equalsIgnoreCase(emailToken)
+        if ((customer.getEmail() == null || !customer.getEmail().equalsIgnoreCase(emailToken))
                 && customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(emailToken)) {
             throw new ConflictException("Email is already registered");
         }
-        Map<String, Object> oldData = Map.of("email", customer.getEmail(), "marketing_consent", customer.getMarketingConsent());
+        Map<String, Object> oldData = new HashMap<>();
+        oldData.put("email", customer.getEmail());
+        oldData.put("marketing_consent", customer.getMarketingConsent());
         customer.setFullName(ProtectedDataToken.customerName(request.fullName()));
         customer.setEmail(emailToken);
         customer.setPhone(ProtectedDataToken.phone(request.phone()));
-        customer.setBirthYear(request.birthDate() == null ? null : (short) request.birthDate().getYear());
+        customer.setBirthYear(birthYear(request.birthDate()));
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
 
@@ -268,7 +270,7 @@ public class CustomerService {
         customer.setCpf(ProtectedDataToken.cpf(cpf));
         customer.setEmail(ProtectedDataToken.email(email));
         customer.setPhone(ProtectedDataToken.phone(phone));
-        customer.setBirthYear(birthDate == null ? null : (short) birthDate.getYear());
+        customer.setBirthYear(birthYear(birthDate));
         customer.setMarketingConsent(Boolean.TRUE.equals(marketingConsent));
         customer.setExternalAuthUid(externalAuthUid);
         customer.setActive(true);
@@ -287,6 +289,17 @@ public class CustomerService {
         auditLogRepository.record("customer", "INSERT", customer.getId().toString(), null, null,
                 Map.of("active", true));
         return customer;
+    }
+
+    private Short birthYear(LocalDate birthDate) {
+        if (birthDate == null) {
+            return null;
+        }
+        int year = birthDate.getYear();
+        if (year < 1900 || year > LocalDate.now().getYear()) {
+            throw new BusinessException("Birth year must be between 1900 and the current year");
+        }
+        return (short) year;
     }
 
     private void setAddressToken(Customer customer, CreateAddressRequest address) {
