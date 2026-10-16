@@ -331,7 +331,7 @@ class EmployeeServiceTest {
 
         service.update(2, new UpdateEmployeeRequest("Employee", employee.getEmail(), null, 4), administrator.getEmail());
 
-        assertEquals("12345678901", employee.getEmployee().getCpf());
+        assertEquals(ProtectedDataToken.cpf("12345678901"), employee.getEmployee().getCpf());
         verify(employeeRepository, never()).existsByCpf(any());
         verify(sessionRepository).revokeAllForUser(2);
         verify(employeeRepository).saveAndFlush(employee.getEmployee());
