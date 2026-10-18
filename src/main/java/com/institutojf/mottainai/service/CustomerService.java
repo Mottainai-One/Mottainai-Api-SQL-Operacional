@@ -86,7 +86,9 @@ public class CustomerService {
         Map<String, Object> oldData = Map.of("full_name", customer.getFullName(),
                 "marketing_consent", customer.getMarketingConsent());
         customer.setFullName(ProtectedDataToken.customerName(request.fullName()));
-        customer.setPhone(ProtectedDataToken.phone(request.phone()));
+        if (request.phone() != null) {
+            customer.setPhone(ProtectedDataToken.phone(request.phone()));
+        }
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
         customerRepository.save(customer);
