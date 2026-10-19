@@ -30,15 +30,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseOrderServiceTest {
@@ -77,7 +74,6 @@ class PurchaseOrderServiceTest {
                 new BigDecimal("85.00"), 1, List.of());
         doReturn(List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
         when(inventoryAccess.currentUser(authentication)).thenReturn(actor);
-        doReturn(List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
         when(outboxEventRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(8)).thenReturn(Optional.of(new Supplier()));
         when(productRepository.findByIdAndActiveTrueAndDeletedAtIsNull(12)).thenReturn(Optional.of(new Product()));
