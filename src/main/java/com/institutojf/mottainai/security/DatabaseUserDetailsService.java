@@ -23,19 +23,18 @@ public class DatabaseUserDetailsService implements UserDetailsService {
 
     private final RlsContextService rlsContextService;
 
-    // Valida o CPF e inicializa o contexto RLS antes de buscar a conta
+    // Valida o Firebase UID recebido somente após a validação do ID token Firebase
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String cpf) {
-        String cpfToken = ProtectedDataToken.cpf(cpf);
-        if (!rlsContextService.bootstrapByCpf(cpfToken)) {
-            throw new UsernameNotFoundException("Invalid CPF or password");
+    public UserDetails loadUserByUsername(String firebaseUid) {
+        if (firebaseUid == null || firebaseUid.isBlank() || !rlsContextService.bootstrapByFirebaseUid(firebaseUid)) {
+            throw new UsernameNotFoundException("Invalid Firebase identity or password");
         }
-        AppUser user = appUserRepository.findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(cpfToken)
+        AppUser user = appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(firebaseUid)
             .filter(this::hasActiveEmployment)
-            .orElseThrow(() -> new UsernameNotFoundException("Invalid CPF or password"));
+            .orElseThrow(() -> new UsernameNotFoundException("Invalid Firebase identity or password"));
         String role = user.getEmployee().getRole().getName().toUpperCase(Locale.ROOT);
-        return User.withUsername(user.getEmail()).password(user.getPasswordHash()).authorities("ROLE_" + role).build();
+        return User.withUsername(user.getFirebaseUid()).password(user.getPasswordHash()).authorities("ROLE_" + role).build();
     }
 
     private boolean hasActiveEmployment(AppUser user) {

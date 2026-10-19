@@ -1,7 +1,6 @@
 package com.institutojf.mottainai.controller.swagger;
 
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
-import com.institutojf.mottainai.dto.request.ForgotPasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
 import com.institutojf.mottainai.dto.request.RefreshTokenRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
@@ -18,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
-@Tag(name = "Authentication", description = "API for authentication and password recovery")
+@Tag(name = "Authentication", description = "API for Firebase-backed operational authentication and invitations")
 public interface AuthenticationControllerApi {
 
     @Operation(summary = "Get the authenticated employee profile")
@@ -28,7 +27,7 @@ public interface AuthenticationControllerApi {
     })
     ResponseEntity<UserResponse> profile(Authentication authentication);
 
-    @Operation(summary = "Authenticate a user")
+    @Operation(summary = "Exchange a verified Firebase identity and operational password for API tokens")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User authenticated", content = @Content(schema = @Schema(implementation = TokenResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
@@ -36,23 +35,16 @@ public interface AuthenticationControllerApi {
     })
     ResponseEntity<TokenResponse> login(LoginRequest request);
 
-    @Operation(summary = "Request a password reset link using CPF and email")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Request accepted"),
-            @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class)))
-    })
-    ResponseEntity<Void> passwordRecovery(ForgotPasswordRequest request);
-
-    @Operation(summary = "Validate a password reset or invitation token")
+    @Operation(summary = "Validate a staff invitation token")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Token validity returned; invalid or expired tokens have valid=false", content = @Content(schema = @Schema(implementation = TokenValidationResponse.class))),
             @ApiResponse(responseCode = "400", description = "Missing token parameter", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
     ResponseEntity<TokenValidationResponse> validateResetToken(String token);
 
-    @Operation(summary = "Reset a password")
+    @Operation(summary = "Complete a staff invitation and set the operational password")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Password reset"),
+            @ApiResponse(responseCode = "204", description = "Invitation accepted and account activated"),
             @ApiResponse(responseCode = "400", description = "Invalid request or expired token", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
     ResponseEntity<Void> passwordReset(ResetPasswordRequest request);

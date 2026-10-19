@@ -55,6 +55,9 @@ class CompanyServiceTest {
     private AppUserRepository appUserRepository;
 
     @Mock
+    private StaffUserLookup staffUserLookup;
+
+    @Mock
     private AuditLogRepository auditLogRepository;
 
     @Mock
@@ -139,7 +142,7 @@ class CompanyServiceTest {
         AppUser user = new AppUser();
         user.setId(9);
         user.setActive(true);
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("admin@example.com")).thenReturn(Optional.of(user));
+        when(staffUserLookup.findActive("admin@example.com")).thenReturn(Optional.of(user));
         when(companyRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(company));
         when(retailStoreRepository.findAllByCompany_IdAndDeletedAtIsNull(1)).thenReturn(java.util.List.of(store));
         when(employeeRepository.findAllByStore_Company_IdAndDeletedAtIsNull(1)).thenReturn(java.util.List.of(employee));

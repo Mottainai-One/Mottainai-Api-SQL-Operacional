@@ -2,7 +2,6 @@ package com.institutojf.mottainai.controller;
 
 import com.institutojf.mottainai.controller.swagger.AuthenticationControllerApi;
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
-import com.institutojf.mottainai.dto.request.ForgotPasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
 import com.institutojf.mottainai.dto.request.RefreshTokenRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
@@ -47,21 +46,13 @@ public class AuthenticationController implements AuthenticationControllerApi {
         return ResponseEntity.ok(authenticationService.login(request));
     }
 
-    // Solicita o envio do link de recuperação para o email e CPF informados
-    @Override
-    @PutMapping("/password-recovery")
-    public ResponseEntity<Void> passwordRecovery(@Valid @RequestBody ForgotPasswordRequest request) {
-        authenticationService.requestPasswordReset(request);
-        return ResponseEntity.noContent().build();
-    }
-
     @Override
     @GetMapping("/password-reset/validate")
     public ResponseEntity<TokenValidationResponse> validateResetToken(@RequestParam String token) {
         return ResponseEntity.ok(new TokenValidationResponse(authenticationService.validateResetToken(token)));
     }
 
-    // Recebe o token do link e a nova senha para finalizar a recuperação
+    // Recebe o convite e a nova senha para ativar a conta operacional.
     @Override
     @PostMapping("/password-reset")
     public ResponseEntity<Void> passwordReset(@Valid @RequestBody ResetPasswordRequest request) {

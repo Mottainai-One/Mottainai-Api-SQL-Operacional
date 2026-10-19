@@ -26,9 +26,9 @@ import java.util.Optional;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class PromotionServiceTest {
@@ -66,10 +66,10 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should create a manager promotion pending approval with its creator")
     void shouldCreatePendingPromotionForManager() {
-        stubRole("MANAGER");
         RetailStore store = new RetailStore();
         store.setId(10);
         AppUser manager = userWithRole("MANAGER", 21, 31);
+        grantRole("MANAGER");
         when(inventoryAccess.currentUser(authentication)).thenReturn(manager);
         when(retailStoreRepository.findById(10)).thenReturn(Optional.of(store));
         when(promotionRepository.save(org.mockito.ArgumentMatchers.any(Promotion.class))).thenAnswer(invocation -> {
@@ -96,12 +96,12 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should approve a pending promotion with the administrator as approver")
     void shouldApprovePendingPromotion() {
-        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
         promotion.setActive(false);
         AppUser administrator = userWithRole("ADMINISTRATOR", 22, 32);
+        grantRole("ADMINISTRATOR");
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
         when(inventoryAccess.currentUser(authentication)).thenReturn(administrator);
         when(promotionRepository.save(promotion)).thenReturn(promotion);
@@ -118,10 +118,10 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should reject approval of a promotion outside the pending state")
     void shouldRejectApprovalOutsidePendingState() {
-        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setStatus(PromotionStatus.APPROVED);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("ADMINISTRATOR");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("ADMINISTRATOR", 22, 32));
         assertThrows(BusinessException.class, () -> service.rejectPromotion(7, authentication));
         verify(promotionRepository, org.mockito.Mockito.never()).save(promotion);
@@ -130,12 +130,12 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should cancel a non-terminal promotion")
     void shouldCancelPromotion() {
-        stubRole("ADMINISTRATOR");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.APPROVED);
         promotion.setActive(true);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("ADMINISTRATOR");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("ADMINISTRATOR", 22, 32));
         when(promotionRepository.save(promotion)).thenReturn(promotion);
         service.cancelPromotion(7, authentication);
@@ -150,11 +150,11 @@ class PromotionServiceTest {
     @Test
     @DisplayName("Should logically delete a manager promotion")
     void shouldLogicallyDeletePromotion() {
-        stubRole("MANAGER");
         Promotion promotion = promotionInStore(10);
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("MANAGER");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("MANAGER", 21, 31));
         when(promotionRepository.save(promotion)).thenReturn(promotion);
         service.deletePromotion(7, authentication);
@@ -186,8 +186,8 @@ class PromotionServiceTest {
         return user;
     }
 
-    private void stubRole(String roleName) {
-        doReturn(List.of(new SimpleGrantedAuthority("ROLE_" + roleName))).when(authentication).getAuthorities();
+    private void grantRole(String role) {
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_" + role))).when(authentication).getAuthorities();
     }
 
 }

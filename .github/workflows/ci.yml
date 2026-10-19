@@ -83,23 +83,27 @@ jobs:
 
           # Obter commits do PR
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            COMMITS=$(git log --oneline ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+            COMMITS=$(git log --no-merges --format=%s ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
           else
-            COMMITS=$(git log --oneline -10)
+            COMMITS=$(git log --no-merges --format=%s -10)
           fi
 
           echo "Commits encontrados:"
           echo "$COMMITS"
 
+          if [ -z "$COMMITS" ]; then
+            echo "Nenhum commit para validar"
+            exit 0
+          fi
+
           # Verificar cada commit
-          echo "$COMMITS" | while read -r line; do
-            COMMIT_MSG=$(echo "$line" | cut -d' ' -f2-)
+          while IFS= read -r COMMIT_MSG; do
             if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
               echo "ERRO: Commit não segue o padrão: $COMMIT_MSG"
               echo "Padrão esperado: feat|fix|docs|style|refactor|test|chore: mensagem"
               exit 1
             fi
-          done
+          done <<< "$COMMITS"
 
           echo "Convenção de commits OK"
 
@@ -157,7 +161,7 @@ jobs:
             COMMENT=$(echo "$line" | cut -d: -f3-)
 
             # Verificar se comentário tem pelo menos 3 caracteres após //
-            CLEAN=$(echo "$COMMENT" | sed 's|//||g; s|/\*||g; s|\*/||g' | xargs)
+            CLEAN=$(echo "$COMMENT" | sed 's|//||g; s|/\*||g; s|\*/||g; s|^[[:space:]]*||; s|[[:space:]]*$||')
             if [ ${#CLEAN} -lt 3 ]; then
               echo "AVISO: Comentário muito curto em $FILE:$LINE"
             fi

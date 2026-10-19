@@ -1,7 +1,5 @@
 package com.institutojf.mottainai.service;
 
-import com.institutojf.mottainai.security.JwtProperties;
-import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -21,12 +19,13 @@ import java.util.Set;
 @Aspect
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
-@RequiredArgsConstructor
 public class RlsContextAspect {
 
     private final RlsContextService rlsContextService;
 
-    private final JwtProperties jwtProperties;
+    public RlsContextAspect(RlsContextService rlsContextService) {
+        this.rlsContextService = rlsContextService;
+    }
 
     @Around("within(com.institutojf.mottainai.service..*) "
             + "&& @annotation(org.springframework.transaction.annotation.Transactional) "
@@ -40,8 +39,7 @@ public class RlsContextAspect {
             .collect(java.util.stream.Collectors.toSet())
             .equals(Set.of("ROLE_CUSTOMER"));
         if (!customerOnly && authentication instanceof JwtAuthenticationToken token
-                && jwtProperties.issuer().equals(String.valueOf(token.getToken().getIssuer()))
-                && !rlsContextService.bootstrapByEmail(token.getName())) {
+                && !rlsContextService.bootstrapByFirebaseUid(token.getToken().getSubject())) {
             throw new BadCredentialsException("Invalid staff context");
         }
         // A transação segue somente depois de validar o contexto de acesso

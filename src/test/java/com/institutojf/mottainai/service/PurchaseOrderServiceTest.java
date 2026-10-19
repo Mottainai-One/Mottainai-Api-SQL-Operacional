@@ -32,11 +32,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseOrderServiceTest {
@@ -73,8 +73,8 @@ class PurchaseOrderServiceTest {
         var request = new CreatePurchaseOrderRequest(8, LocalDate.of(2026, 10, 10), "Morning", List.of(item));
         var created = new PurchaseOrderRepository.PurchaseOrderData(5, 3, 8, 4, LocalDateTime.now(), request.expectedDeliveryDate(), PurchaseOrderStatus.PENDING, request.observation(),
                 new BigDecimal("85.00"), 1, List.of());
-        when(inventoryAccess.currentUser(authentication)).thenReturn(actor);
         doReturn(List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
+        when(inventoryAccess.currentUser(authentication)).thenReturn(actor);
         when(outboxEventRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(8)).thenReturn(Optional.of(new Supplier()));
         when(productRepository.findByIdAndActiveTrueAndDeletedAtIsNull(12)).thenReturn(Optional.of(new Product()));

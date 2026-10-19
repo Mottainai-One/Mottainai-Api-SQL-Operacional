@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,29 +28,40 @@ class DatabaseUserDetailsServiceTest {
     private RlsContextService rlsContextService;
 
     @Test
-    void hashesRawCpfBeforeBootstrapAndRepositoryLookup() {
-        String rawCpf = "12345678901";
-        String cpfToken = ProtectedDataToken.cpf(rawCpf);
+    void resolvesStaffAccountByFirebaseUid() {
+        String firebaseUid = "firebase-user-123";
         EmployeeRole role = new EmployeeRole();
         role.setName("OPERATOR");
         role.setActive(true);
         Employee employee = new Employee();
-        employee.setCpf(cpfToken);
         employee.setActive(true);
         employee.setRole(role);
         AppUser user = new AppUser();
-        user.setEmail("operator@example.com");
+        user.setFirebaseUid(firebaseUid);
+        user.setActive(true);
         user.setPasswordHash("encoded-password");
         user.setEmployee(employee);
 
-        when(rlsContextService.bootstrapByCpf(cpfToken)).thenReturn(true);
-        when(appUserRepository.findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(cpfToken))
+        when(rlsContextService.bootstrapByFirebaseUid(firebaseUid)).thenReturn(true);
+        when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(firebaseUid))
                 .thenReturn(Optional.of(user));
 
-        var details = new DatabaseUserDetailsService(appUserRepository, rlsContextService).loadUserByUsername(rawCpf);
+        var details = new DatabaseUserDetailsService(appUserRepository, rlsContextService)
+                .loadUserByUsername(firebaseUid);
 
-        assertEquals("operator@example.com", details.getUsername());
-        verify(rlsContextService).bootstrapByCpf(cpfToken);
-        verify(appUserRepository).findByEmployee_CpfAndActiveTrueAndDeletedAtIsNull(cpfToken);
+        assertEquals(firebaseUid, details.getUsername());
+        assertEquals("encoded-password", details.getPassword());
+        assertEquals("ROLE_OPERATOR", details.getAuthorities().iterator().next().getAuthority());
+        verify(rlsContextService).bootstrapByFirebaseUid(firebaseUid);
+        verify(appUserRepository).findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(firebaseUid);
+    }
+
+    @Test
+    void rejectsUidWhenDatabaseBootstrapDoesNotResolveIt() {
+        when(rlsContextService.bootstrapByFirebaseUid("unlinked-uid")).thenReturn(false);
+
+        assertThrows(UsernameNotFoundException.class,
+                () -> new DatabaseUserDetailsService(appUserRepository, rlsContextService)
+                        .loadUserByUsername("unlinked-uid"));
     }
 }

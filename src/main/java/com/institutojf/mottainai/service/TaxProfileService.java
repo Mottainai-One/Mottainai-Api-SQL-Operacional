@@ -30,6 +30,8 @@ public class TaxProfileService {
 
     private final AppUserRepository appUserRepository;
 
+    private final StaffUserLookup staffUserLookup;
+
     private final AuditLogRepository auditLogRepository;
 
     @Transactional(readOnly = true)
@@ -114,7 +116,7 @@ public class TaxProfileService {
     }
 
     private AppUser findActor(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(email)
+        return staffUserLookup.findActive(email)
             .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
     }
 

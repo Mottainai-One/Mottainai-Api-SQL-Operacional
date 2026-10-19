@@ -36,6 +36,8 @@ public class RetailStoreService {
 
     private final AppUserRepository appUserRepository;
 
+    private final StaffUserLookup staffUserLookup;
+
     private final AuditLogRepository auditLogRepository;
 
     private final RetailStoreMapper retailStoreMapper;
@@ -91,7 +93,7 @@ public class RetailStoreService {
 
     @Transactional
     public void delete(Integer id, String actorEmail) {
-        AppUser actor = appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(actorEmail)
+        AppUser actor = staffUserLookup.findActive(actorEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         RetailStore store = findActiveStoreById(id);
         store.setActive(false);

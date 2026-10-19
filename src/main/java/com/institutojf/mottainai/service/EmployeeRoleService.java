@@ -35,6 +35,8 @@ public class EmployeeRoleService {
 
     private final AuditLogRepository auditLogRepository;
 
+    private final StaffUserLookup staffUserLookup;
+
     @Transactional(readOnly = true)
     public List<EmployeeRoleResponse> findAll() {
         return employeeRoleRepository.findAllByActiveTrueAndDeletedAtIsNullOrderByPermissionLevelDescNameAsc()
@@ -106,7 +108,7 @@ public class EmployeeRoleService {
     }
 
     private AppUser findActor(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(email)
+        return staffUserLookup.findActive(email)
             .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
     }
 

@@ -23,8 +23,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -121,7 +119,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/v1/customers/auth/profile")
                 .hasRole("CUSTOMER")
-                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/password-recovery",
+                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh",
                         "/api/v1/auth/password-reset", "/api/v1/auth/password-reset/validate",
                         "/api/v1/customers/auth/**", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
                         "/actuator/health")
@@ -149,7 +147,7 @@ public class SecurityConfig {
                 .anyRequest()
                 .authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver()))
-            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties),
+            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties),
                     BearerTokenAuthenticationFilter.class);
         return http.build();
     }
@@ -193,7 +191,8 @@ public class SecurityConfig {
         return decoder;
     }
 
-    private JwtDecoder firebaseJwtDecoder() {
+    @Bean("firebaseJwtDecoder")
+    public JwtDecoder firebaseJwtDecoder() {
         String firebaseIssuer = "https://securetoken.google.com/" + firebaseProperties.projectId();
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(FIREBASE_JWK_SET_URI).build();
         OAuth2TokenValidator<Jwt> audienceValidator = jwt -> jwt.getAudience().contains(firebaseProperties.projectId())
@@ -217,7 +216,6 @@ public class SecurityConfig {
     private JwtIssuerAuthenticationManagerResolver staffAuthenticationManagerResolver() {
         Map<String, AuthenticationManager> managers = new HashMap<>();
         managers.put(jwtProperties.issuer(), jwtAuthenticationManager(jwtDecoder(), jwtAuthenticationConverter()));
-        managers.put(firebaseIssuer(), jwtAuthenticationManager(firebaseJwtDecoder(), firebaseStaffAuthenticationConverter()));
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }
 
@@ -226,18 +224,6 @@ public class SecurityConfig {
         JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);
         provider.setJwtAuthenticationConverter(converter);
         return new ProviderManager(provider);
-    }
-
-    private JwtAuthenticationConverter firebaseStaffAuthenticationConverter() {
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setPrincipalClaimName("email");
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> FirebaseStaffRole.authoritiesFor(jwt.getClaimAsString("role"))
-                .stream().map(role -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + role)).toList());
-        return converter;
-    }
-
-    private String firebaseIssuer() {
-        return "https://securetoken.google.com/" + firebaseProperties.projectId();
     }
 
     private SecretKey jwtSecretKey() {
