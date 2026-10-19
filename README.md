@@ -34,6 +34,22 @@ Antes de publicar a API, a equipe de dados deve disponibilizar o schema compatí
 
 ## Executar
 
+### Imagem Docker para QA
+
+O `Dockerfile` cria uma imagem Java 21 da API. O banco é provisionado pelo repositório `Mottainai-Banco-Operacional`; a API conecta usando `DB_URL`, `DB_USER` e `DB_PASSWORD`. A imagem não contém senhas nem dados. O endpoint público de verificação é `/actuator/health`.
+
+O contrato atual do banco guarda apenas `customer.birth_year`. A resposta de cliente da API expõe `birthYear` e não devolve uma data de nascimento completa.
+
+No QA, mantenha `spring.flyway.enabled=false`: o instalador operacional versionado cria o esquema, e o Hibernate apenas valida sua compatibilidade. Configure `JWT_SECRET` individualmente para o ambiente. O Compose do banco liga esta API ao PostgreSQL de QA e expõe uma porta local apenas por meio do arquivo opcional `compose.local.yaml`.
+
+Build local da imagem:
+
+```bash
+docker build -t mottainai-api:qa .
+```
+
+### Execução sem Docker
+
 ```bash
 bash ./mvnw spring-boot:run
 ```

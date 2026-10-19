@@ -1,0 +1,373 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, master]
+
+jobs:
+  # ============================================================
+  # JOB 1: Build e Testes com ordem aleatória
+  # ============================================================
+  build-and-test:
+    name: 1. Build e Testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build e Testes (ordem aleatória)
+        run: |
+          mvn -B -ntp clean verify -Dsurefire.runOrder=random
+
+      - name: Upload resultados de teste
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/surefire-reports/
+
+  # ============================================================
+  # JOB 2: Estilo de Código (indentação)
+  # ============================================================
+  code-style:
+    name: 2. Estilo de Código
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar indentação Java
+        run: |
+          set -e
+          echo "Verificando indentação em arquivos Java..."
+
+          # Verificar se há tabs nos arquivos .java
+          if grep -rP "\t" --include="*.java" src/; then
+            echo "ERRO: Encontrado tab em arquivo Java"
+            echo "Use espaços em vez de tabs"
+            exit 1
+          fi
+
+          # Verificar indentação com 2 espaços
+          echo "Verificando indentação com 2 espaços..."
+          find src/ -name "*.java" -exec grep -l "^  [^ ]" {} \; | head -5
+
+          echo "Estilo de código OK"
+
+  # ============================================================
+  # JOB 3: Convenção de Commits
+  # ============================================================
+  commit-convention:
+    name: 3. Convenção de Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar padrão de commits
+        run: |
+          set -e
+          echo "Verificando convenção de commits..."
+
+          # Padrão de commits aceitos
+          PATTERN="^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert):"
+
+          # Obter commits do PR
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            COMMITS=$(git log --oneline ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          else
+            COMMITS=$(git log --oneline -10)
+          fi
+
+          echo "Commits encontrados:"
+          echo "$COMMITS"
+
+          # Verificar cada commit
+          echo "$COMMITS" | while read -r line; do
+            COMMIT_MSG=$(echo "$line" | cut -d' ' -f2-)
+            if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+              echo "ERRO: Commit não segue o padrão: $COMMIT_MSG"
+              echo "Padrão esperado: feat|fix|docs|style|refactor|test|chore: mensagem"
+              exit 1
+            fi
+          done
+
+          echo "Convenção de commits OK"
+
+  # ============================================================
+  # JOB 4: Varredura de Segredos
+  # ============================================================
+  secret-scan:
+    name: 4. Varredura de Segredos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./gitleaks git --no-banner --redact -v --log-opts="${{ github.event.pull_request.base.sha }}..HEAD"
+          else
+            ./gitleaks git --no-banner --redact -v --log-opts="HEAD^..HEAD"
+          fi
+
+  # ============================================================
+  # JOB 5: Idioma dos Comentários
+  # ============================================================
+  comment-language:
+    name: 5. Idioma dos Comentários
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar comentários
+        run: |
+          echo "Verificando comentários em arquivos Java..."
+
+          # Extrair comentários de arquivos .java
+          find src/ -name "*.java" -exec grep -Hn "//\|/\*\|\*" {} \; > /tmp/comments.txt || true
+
+          if [ ! -s /tmp/comments.txt ]; then
+            echo "Nenhum comentário encontrado"
+            exit 0
+          fi
+
+          echo "Comentários encontrados:"
+          cat /tmp/comments.txt
+
+          # Verificar se comentários fazem sentido (básico)
+          # Procurar por comentários muito curtos ou sem sentido
+          while IFS= read -r line; do
+            FILE=$(echo "$line" | cut -d: -f1)
+            LINE=$(echo "$line" | cut -d: -f2)
+            COMMENT=$(echo "$line" | cut -d: -f3-)
+
+            # Verificar se comentário tem pelo menos 3 caracteres após //
+            CLEAN=$(echo "$COMMENT" | sed 's|//||g; s|/\*||g; s|\*/||g' | xargs)
+            if [ ${#CLEAN} -lt 3 ]; then
+              echo "AVISO: Comentário muito curto em $FILE:$LINE"
+            fi
+          done < /tmp/comments.txt
+
+          echo "Verificação de comentários concluída"
+
+  # ============================================================
+  # JOB 6: Idioma do Código
+  # ============================================================
+  code-language:
+    name: 6. Idioma do Código
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar código em inglês
+        run: |
+          echo "Verificando se código está em inglês..."
+
+          # Verificar nomes de classes e métodos
+          # Procurar por possíveis palavras em português
+          PATTERNS="getDados|setDados|buscar|salvar|atualizar|remover|listar|criar"
+
+          if grep -rE "$PATTERNS" --include="*.java" src/; then
+            echo "AVISO: Encontrados possíveis nomes em português"
+            echo "Considere usar nomes em inglês: getData, setData, find, save, update, delete, list, create"
+          fi
+
+          echo "Verificação de idioma concluída"
+
+  # ============================================================
+  # JOB 7: Dependências Desatualizadas
+  # ============================================================
+  dependencies:
+    name: 7. Dependências Desatualizadas
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verificar dependências desatualizadas
+        run: |
+          echo "Verificando dependências desatualizadas..."
+          mvn -B -ntp versions:display-dependency-updates
+          mvn -B -ntp versions:display-plugin-updates
+
+      - name: Verificar vulnerabilidades
+        run: |
+          echo "Verificando vulnerabilidades..."
+          mvn -B -ntp org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 || true
+
+  # ============================================================
+  # JOB 8: Migrations Flyway
+  # ============================================================
+  flyway-migrations:
+    name: 8. Migrations Flyway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar migrations
+        run: |
+          set -e
+          echo "Verificando migrations Flyway..."
+
+          MIGRATION_DIR="src/main/resources/db/migration"
+
+          if [ ! -d "$MIGRATION_DIR" ]; then
+            echo "Diretório de migrations não encontrado"
+            exit 0
+          fi
+
+          # Verificar se há migrations
+          MIGRATIONS=$(find "$MIGRATION_DIR" -name "*.sql" | wc -l)
+          echo "Migrations encontradas: $MIGRATIONS"
+
+          if [ "$MIGRATIONS" -eq 0 ]; then
+            echo "Nenhuma migration encontrada"
+            exit 0
+          fi
+
+          # Verificar cada migration
+          for migration in $(find "$MIGRATION_DIR" -name "*.sql" | sort); do
+            echo "Verificando: $migration"
+
+            # Verificar se tem BEGIN/COMMIT (transação)
+            if ! grep -q "BEGIN" "$migration" && ! grep -q "COMMIT" "$migration"; then
+              echo "AVISO: $migration não tem transação BEGIN/COMMIT"
+            fi
+
+            # Verificar se tem ROLLBACK ou é reversível
+            if ! grep -qi "ROLLBACK\|REVERT\|DROP" "$migration"; then
+              echo "AVISO: $migration pode não ser reversível"
+            fi
+
+            # Verificar se SQL é válido (básico)
+            if ! grep -q "CREATE\|ALTER\|DROP\|INSERT\|UPDATE\|DELETE" "$migration"; then
+              echo "ERRO: $migration não contém SQL válido"
+              exit 1
+            fi
+          done
+
+          echo "Migrations OK"
+
+  # ============================================================
+  # JOB 9: Verificação do Swagger/OpenAPI
+  # ============================================================
+  swagger-check:
+    name: 9. Verificação Swagger
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar configuração OpenAPI
+        run: |
+          echo "Verificando configuração OpenAPI..."
+
+          # Verificar se springdoc-openapi está no pom.xml
+          if ! grep -q "springdoc-openapi" pom.xml; then
+            echo "AVISO: springdoc-openapi não encontrado no pom.xml"
+          fi
+
+          # Verificar se há configuração do springdoc
+          if find src/ -name "*.properties" -o -name "*.yml" -o -name "*.yaml" | xargs grep -l "springdoc" 2>/dev/null; then
+            echo "Configuração springdoc encontrada"
+          else
+            echo "AVISO: Nenhuma configuração springdoc encontrada"
+          fi
+
+          # Verificar se há anotações de API
+          if grep -r "@Tag\|@Operation\|@ApiResponse" --include="*.java" src/; then
+            echo "Anotações OpenAPI encontradas"
+          else
+            echo "AVISO: Nenhuma anotação OpenAPI encontrada nos controllers"
+          fi
+
+          echo "Verificação Swagger concluída"
+
+  # ============================================================
+  # JOB 10: Código Não Utilizado
+  # ============================================================
+  unused-code:
+    name: 10. Código Não Utilizado
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar imports não utilizados
+        run: |
+          echo "Verificando imports não utilizados..."
+
+          # Procurar por imports em arquivos Java
+          find src/ -name "*.java" | while read file; do
+            # Extrair imports
+            IMPORTS=$(grep "^import " "$file" | sed 's/import //; s/;$//' | sed 's/.*\.//')
+
+            # Verificar se cada import é usado
+            for import in $IMPORTS; do
+              # Contar ocorrências além da linha de import
+              COUNT=$(grep -v "^import " "$file" | grep -c "$import" || true)
+              if [ "$COUNT" -eq 0 ]; then
+                echo "AVISO: Import não utilizado em $file: $import"
+              fi
+            done
+          done
+
+          echo "Verificação de código não utilizado concluída"
+
+  # ============================================================
+  # JOB 11: Proteção do .env
+  # ============================================================
+  env-protection:
+    name: 11. Proteção .env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar .env
+        run: |
+          set -e
+          echo "Verificando proteção do .env..."
+
+          # 1) Verificar se .env existe no repositório
+          if find . -name ".env" -not -path "./node_modules/*" -not -path "./.git/*" | grep -q .; then
+            echo "ERRO: Arquivo .env encontrado no repositório"
+            exit 1
+          fi
+
+          # 2) Verificar se .env está no histórico git
+          if git log --all --oneline -- .env | grep -q .; then
+            echo "ERRO: .env já foi commitado no histórico"
+            exit 1
+          fi
+
+          # 3) Verificar se .env está no .gitignore
+          if ! grep -qE "^\.env" .gitignore 2>/dev/null; then
+            echo "AVISO: .env não está no .gitignore"
+          fi
+
+          echo "Proteção .env OK"
