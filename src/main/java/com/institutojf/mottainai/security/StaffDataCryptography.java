@@ -1,5 +1,6 @@
 package com.institutojf.mottainai.security;
 
+import com.institutojf.mottainai.config.StaffDataProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
@@ -13,7 +14,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -41,17 +41,17 @@ public final class StaffDataCryptography {
         this(encryptionKeyBase64, keyVersion, "", encryptionKeyBase64);
     }
 
-    public StaffDataCryptography(@Value("${security.staff.data.encryption-key:}") String encryptionKeyBase64,
-            @Value("${security.staff.data.key-version:1}") int keyVersion,
-            @Value("${security.staff.data.decryption-keys:}") String historicalKeyConfiguration) {
+    public StaffDataCryptography(String encryptionKeyBase64, int keyVersion, String historicalKeyConfiguration) {
         this(encryptionKeyBase64, keyVersion, historicalKeyConfiguration, encryptionKeyBase64);
     }
 
     @Autowired
-    public StaffDataCryptography(@Value("${security.staff.data.encryption-key:}") String encryptionKeyBase64,
-            @Value("${security.staff.data.key-version:1}") int keyVersion,
-            @Value("${security.staff.data.decryption-keys:}") String historicalKeyConfiguration,
-            @Value("${security.staff.data.lookup-key:}") String cpfLookupKeyBase64) {
+    public StaffDataCryptography(StaffDataProperties properties) {
+        this(properties.encryptionKey(), properties.keyVersion(), properties.decryptionKeys(), properties.lookupKey());
+    }
+
+    private StaffDataCryptography(String encryptionKeyBase64, int keyVersion,
+            String historicalKeyConfiguration, String cpfLookupKeyBase64) {
         this.encryptionKey = decodeKey(encryptionKeyBase64);
         this.cpfLookupKey = decodeKey(cpfLookupKeyBase64, "STAFF_DATA_LOOKUP_KEY");
         if (keyVersion < 1 || keyVersion > Short.MAX_VALUE) {
