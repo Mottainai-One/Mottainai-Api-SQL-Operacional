@@ -46,4 +46,7 @@ public class Employee {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(name = "cpf_lookup_hmac", columnDefinition = "bytea")
+    private byte[] cpfLookupHmac;
 }

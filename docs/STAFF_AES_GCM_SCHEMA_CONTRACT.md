@@ -7,8 +7,10 @@ by the API and does not replace or modify the database installer.
 ## Employee personal data
 
 `mottainai.employee` and `mottainai.app_user` do not contain staff name, CPF,
-email, or phone in plaintext, ciphertext, hashes, or HMAC indexes. Those values
-are stored only in `mottainai.employee_private_data`, one row per employee.
+email, or phone in plaintext. Those values are stored only in
+`mottainai.employee_private_data`, one row per employee. `employee.cpf_lookup_hmac`
+stores only a keyed HMAC-SHA-256 fingerprint so the API can check CPF duplicates
+through the database index without decrypting every employee row.
 Each value has a `BYTEA` ciphertext, a separate `BYTEA` nonce, and a masked
 display value. The row also stores `key_version`, `algorithm` (`AES-256-GCM`),
 `protection_state` (`MIGRATION_PENDING` or `ENCRYPTED`), `encrypted_at`, and
@@ -26,14 +28,12 @@ bytes:
 | `employee_private_data.email_ciphertext` | `mottainai:operational:employee.email` |
 | `employee_private_data.phone_ciphertext` | `mottainai:operational:employee.phone` |
 
-`cpf_masked` is for display only and is never used as an identity.
+`cpf_masked` is for display only and is never used as an identity. The HMAC is
+not reversible and is calculated from the normalized 11-digit CPF.
 
-The API has no HMAC/blind-index logic for staff data, no staff HMAC key setting,
-and no lookup by CPF or email. Since the schema has no encrypted-field equality
-indexes, duplicate CPF/email checks decrypt rows visible to the caller's RLS
-context; the database remains the authority for constraints it actually
-defines. Do not represent this behavior as globally unique across RLS-hidden
-rows unless the schema adds a supported mechanism.
+CPF duplicate checks use `employee.cpf_lookup_hmac` and its unique database
+index. Email duplicate checks still decrypt stored rows visible to the caller's
+RLS context; email lookup is unchanged.
 
 ## Staff identity and authentication
 
@@ -56,8 +56,10 @@ is a separate customer-app flow.
 
 Configure `STAFF_DATA_ENCRYPTION_KEY` as Base64 encoding exactly 32 random bytes
 and `STAFF_DATA_KEY_VERSION` as a positive `SMALLINT` version matching the
-database contract. Keep the key outside source control and the database. There
-is no `STAFF_DATA_LOOKUP_KEY` because staff HMAC indexes are not part of PR #34.
+database contract. Configure `STAFF_DATA_LOOKUP_KEY` as a separate Base64
+encoding of 32 random bytes. Keep both keys outside source control and the
+database. Keep the lookup key stable; changing it requires recalculating the
+stored HMAC fingerprints before duplicate checks can work again.
 Losing the encryption key makes existing encrypted values unrecoverable;
 rotation requires coordinated re-encryption and key-version handling.
 

@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -30,19 +31,29 @@ public final class StaffDataCryptography {
 
     private final SecretKey encryptionKey;
 
+    private final SecretKey cpfLookupKey;
+
     private final short keyVersion;
 
     private final Map<Short, SecretKey> decryptionKeys;
 
     public StaffDataCryptography(String encryptionKeyBase64, int keyVersion) {
-        this(encryptionKeyBase64, keyVersion, "");
+        this(encryptionKeyBase64, keyVersion, "", encryptionKeyBase64);
+    }
+
+    public StaffDataCryptography(@Value("${security.staff.data.encryption-key:}") String encryptionKeyBase64,
+            @Value("${security.staff.data.key-version:1}") int keyVersion,
+            @Value("${security.staff.data.decryption-keys:}") String historicalKeyConfiguration) {
+        this(encryptionKeyBase64, keyVersion, historicalKeyConfiguration, encryptionKeyBase64);
     }
 
     @Autowired
     public StaffDataCryptography(@Value("${security.staff.data.encryption-key:}") String encryptionKeyBase64,
             @Value("${security.staff.data.key-version:1}") int keyVersion,
-            @Value("${security.staff.data.decryption-keys:}") String historicalKeyConfiguration) {
+            @Value("${security.staff.data.decryption-keys:}") String historicalKeyConfiguration,
+            @Value("${security.staff.data.lookup-key:}") String cpfLookupKeyBase64) {
         this.encryptionKey = decodeKey(encryptionKeyBase64);
+        this.cpfLookupKey = decodeKey(cpfLookupKeyBase64, "STAFF_DATA_LOOKUP_KEY");
         if (keyVersion < 1 || keyVersion > Short.MAX_VALUE) {
             throw new IllegalStateException("STAFF_DATA_KEY_VERSION must be between 1 and 32767");
         }
@@ -101,20 +112,38 @@ public final class StaffDataCryptography {
         return keyVersion;
     }
 
+    public byte[] cpfLookupHmac(String normalizedCpf) {
+        if (normalizedCpf == null || !normalizedCpf.matches("\\d{11}")) {
+            throw new IllegalArgumentException("A normalized 11-digit CPF is required for lookup");
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(cpfLookupKey.getEncoded(), "HmacSHA256"));
+            return mac.doFinal(normalizedCpf.getBytes(StandardCharsets.US_ASCII));
+        }
+        catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Could not create staff CPF lookup fingerprint", exception);
+        }
+    }
+
     private static SecretKey decodeKey(String encoded) {
+        return decodeKey(encoded, "STAFF_DATA_ENCRYPTION_KEY");
+    }
+
+    private static SecretKey decodeKey(String encoded, String settingName) {
         if (encoded == null || encoded.isBlank()) {
-            throw new IllegalStateException("STAFF_DATA_ENCRYPTION_KEY must be configured as a Base64 256-bit key");
+            throw new IllegalStateException(settingName + " must be configured as a Base64 256-bit key");
         }
         byte[] key;
         try {
             key = Base64.getDecoder().decode(encoded);
         }
         catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("STAFF_DATA_ENCRYPTION_KEY must be valid Base64", exception);
+            throw new IllegalStateException(settingName + " must be valid Base64", exception);
         }
         if (key.length != 32) {
             Arrays.fill(key, (byte) 0);
-            throw new IllegalStateException("STAFF_DATA_ENCRYPTION_KEY must decode to exactly 32 bytes");
+            throw new IllegalStateException(settingName + " must decode to exactly 32 bytes");
         }
         return new SecretKeySpec(key, "AES");
     }

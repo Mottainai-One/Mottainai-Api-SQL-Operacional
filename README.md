@@ -83,14 +83,18 @@ da conta Firebase; uma conta só é ativada após associar o UID verificado.
 
 ## PII de funcionários
 
-Nome, CPF, e-mail e telefone não ficam em claro nem em HMAC no banco. A API os
-armazena em `mottainai.employee_private_data` como ciphertext/nonce `BYTEA`
-AES-256-GCM, com máscaras e `key_version`. CPF é exibido mascarado; contatos e
-nome podem ser retornados pela API a consumidores autorizados. A chave é
-externa ao banco e ao repositório.
+Nome, CPF, e-mail e telefone são armazenados em
+`mottainai.employee_private_data` como ciphertext/nonce `BYTEA` AES-256-GCM,
+com máscaras e `key_version`. A tabela `employee` também guarda um HMAC do CPF
+para buscas de duplicidade indexadas; ele não pode ser revertido para o CPF.
+CPF é exibido mascarado; contatos e nome podem ser retornados pela API a
+consumidores autorizados. As chaves ficam fora do banco e do repositório.
 
-Ao rotacionar a chave, atualize `STAFF_DATA_ENCRYPTION_KEY` e
-`STAFF_DATA_KEY_VERSION`. Preserve as chaves antigas necessárias à leitura em
+Configure `STAFF_DATA_LOOKUP_KEY` como uma chave Base64 distinta de
+`STAFF_DATA_ENCRYPTION_KEY`. Mantenha-a estável; trocá-la exige recalcular os
+HMACs já gravados. Ao rotacionar a chave AES, atualize
+`STAFF_DATA_ENCRYPTION_KEY` e `STAFF_DATA_KEY_VERSION`. Preserve as chaves
+antigas necessárias à leitura em
 `STAFF_DATA_DECRYPTION_KEYS`, no formato `versao:chaveBase64`, separadas por
 vírgula (por exemplo, `1:<chave-antiga>`). O `key_version` persistido escolhe a
 chave de decrypt; se uma versão antiga não estiver configurada, a API falha

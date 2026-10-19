@@ -53,6 +53,7 @@ security:
       encryption-key: ${STAFF_DATA_ENCRYPTION_KEY:}
       key-version: ${STAFF_DATA_KEY_VERSION:1}
       decryption-keys: ${STAFF_DATA_DECRYPTION_KEYS:}
+      lookup-key: ${STAFF_DATA_LOOKUP_KEY:}
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:}
 

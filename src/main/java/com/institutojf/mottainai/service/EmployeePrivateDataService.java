@@ -7,7 +7,6 @@ import com.institutojf.mottainai.security.StaffDataCryptography;
 import com.institutojf.mottainai.security.StaffDataCryptography.EncryptedValue;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +49,7 @@ public class EmployeePrivateDataService {
         data.setProtectionState("ENCRYPTED");
         data.setKeyVersion(cryptography.keyVersion());
         data.setEncryptedAt(now);
+        employee.setCpfLookupHmac(cryptography.cpfLookupHmac(normalizedCpf));
         setName(data, normalizedName);
         setCpf(data, normalizedCpf);
         setEmail(data, email);
@@ -63,10 +63,10 @@ public class EmployeePrivateDataService {
         if (normalized == null) {
             return false;
         }
-        return repository.findAll().stream()
-                .filter(data -> !Objects.equals(data.getEmployeeId(), excludedEmployeeId))
-                .map(data -> decryptCpf(data))
-                .anyMatch(value -> Objects.equals(value, normalized));
+        byte[] lookup = cryptography.cpfLookupHmac(normalized);
+        return excludedEmployeeId == null
+                ? repository.existsByEmployee_CpfLookupHmac(lookup)
+                : repository.existsByEmployee_CpfLookupHmacAndEmployee_IdNot(lookup, excludedEmployeeId);
     }
 
     @Transactional(readOnly = true)
