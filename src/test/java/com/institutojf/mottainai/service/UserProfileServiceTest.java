@@ -1,180 +1,135 @@
 package com.institutojf.mottainai.service;
 
-import com.institutojf.mottainai.dto.request.InviteStoreUserRequest;
-import com.institutojf.mottainai.dto.request.UpdateStoreUserRequest;
-import com.institutojf.mottainai.exception.ConflictException;
+import com.institutojf.mottainai.exception.ResourceNotFoundException;
+import com.institutojf.mottainai.dto.response.RetailStoreResponse;
+import com.institutojf.mottainai.mapper.RetailStoreMapper;
 import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeeRole;
 import com.institutojf.mottainai.model.RetailStore;
 import com.institutojf.mottainai.repository.AppUserRepository;
-import com.institutojf.mottainai.repository.EmployeeRepository;
-import com.institutojf.mottainai.repository.EmployeeRoleRepository;
-import com.institutojf.mottainai.mapper.RetailStoreMapper;
-import com.institutojf.mottainai.repository.AuditLogRepository;
-import com.institutojf.mottainai.security.ProtectedDataToken;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserProfileServiceTest {
 
-    @Mock
-    AppUserRepository appUserRepository;
-
-    @Mock
-    EmployeeRepository employeeRepository;
-
-    @Mock
-    EmployeeRoleRepository employeeRoleRepository;
-
-    @Mock
-    AuditLogRepository auditLogRepository;
-
-    @Mock
-    RetailStoreMapper retailStoreMapper;
-
-    @Mock
-    PasswordEncoder passwordEncoder;
-
-    @InjectMocks
-    private UserProfileService service;
+    @Mock private AppUserRepository appUserRepository;
+    @Mock private RetailStoreMapper retailStoreMapper;
+    @Mock private EmployeePrivateDataService privateDataService;
 
     @Test
-    @DisplayName("Should return authenticated user with nullable firebase uid")
-    void shouldReturnAuthenticatedUserWithNullableFirebaseUid() {
-        AppUser user = user(1, "ADMINISTRATOR", true);
-        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com")).thenReturn(Optional.of(user));
-        var response = service.me("admin@test.com");
-        assertEquals("admin@test.com", response.email());
-        assertEquals("***", response.cpf());
-        assertEquals("ADMINISTRATOR", response.role());
-    }
-
-    @Test
-    @DisplayName("Should create inactive invite for authenticated users store")
-    void shouldCreateInactiveInviteForAuthenticatedUsersStore() {
-        AppUser requester = user(1, "ADMINISTRATOR", true);
-        EmployeeRole role = role("OPERATOR");
-        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com"))
-            .thenReturn(Optional.of(requester));
-        when(appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull("new@test.com")).thenReturn(false);
-        String cpfToken = ProtectedDataToken.cpf("12345678901");
-        when(employeeRepository.existsByCpf(cpfToken)).thenReturn(false);
-        when(employeeRoleRepository.findByNameIgnoreCaseAndActiveTrueAndDeletedAtIsNull("OPERATOR"))
-            .thenReturn(Optional.of(role));
-        when(passwordEncoder.encode(anyString())).thenReturn("$2a$hash");
-        when(employeeRepository.save(any(Employee.class))).thenAnswer(invocation -> {
-            Employee employee = invocation.getArgument(0);
-            employee.setId(10);
-            return employee;
-        });
-        when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> {
-            AppUser user = invocation.getArgument(0);
-            user.setId(20);
-            return user;
-        });
-        var response = service.invite(
-                new InviteStoreUserRequest(" New User ", "12345678901", " New@Test.com ", " 555-0100 ", "OPERATOR"),
-                "admin@test.com");
-        assertFalse(response.active());
-        assertTrue(response.passwordSetupRequired());
-        assertFalse(response.emailNotificationSent());
-        assertEquals("New User", response.user().name());
-        assertEquals("new@test.com", response.user().email());
-        assertEquals("555-0100", response.user().phone());
-        assertEquals("***", response.user().cpf());
-        verify(passwordEncoder).encode(anyString());
-        verify(appUserRepository).save(argThat(
-                user -> !user.getActive() && user.getEmployee().getStore() == requester.getEmployee().getStore()
-                        && user.getEmail().equals("new@test.com")
-                        && user.getEmployee().getEmail().equals("new@test.com")
-                        && user.getCpf().equals(cpfToken)
-                        && user.getEmployee().getCpf().equals(cpfToken)
-                        && user.getEmployee().getName().equals("New User")
-                        && user.getEmployee().getPhone().equals("555-0100")));
-        verify(auditLogRepository).record(eq("employee"), eq("INSERT"), eq("10"), eq(1), isNull(),
-                argThat(data -> data instanceof java.util.Map<?, ?> values
-                        && "***".equals(values.get("cpf_masked"))
-                        && !values.containsValue("12345678901")
-                        && !values.containsValue(cpfToken)));
-        verify(auditLogRepository).record(eq("app_user"), eq("INSERT"), eq("20"), eq(1), isNull(),
-                argThat(data -> data instanceof java.util.Map<?, ?> values
-                        && "***".equals(values.get("cpf_masked"))
-                        && !values.containsValue("12345678901")
-                        && !values.containsValue(cpfToken)));
-    }
-
-    @Test
-    @DisplayName("Should reject existing email before creating invite")
-    void shouldRejectExistingEmailBeforeCreatingInvite() {
-        AppUser requester = user(1, "ADMINISTRATOR", true);
-        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com"))
-            .thenReturn(Optional.of(requester));
-        when(appUserRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull("new@test.com")).thenReturn(true);
-        assertThrows(ConflictException.class,
-                () -> service.invite(
-                        new InviteStoreUserRequest("New User", "12345678901", "new@test.com", null, "OPERATOR"),
-                        "admin@test.com"));
-        verify(employeeRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Should update role and status together")
-    void shouldUpdateRoleAndStatusTogether() {
-        AppUser user = user(2, "OPERATOR", false);
-        AppUser requester = user(1, "ADMINISTRATOR", true);
-        EmployeeRole role = role("SUPERVISOR");
-        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull("admin@test.com"))
-            .thenReturn(Optional.of(requester));
-        when(appUserRepository.findById(2)).thenReturn(Optional.of(user));
-        when(employeeRoleRepository.findByNameIgnoreCaseAndActiveTrueAndDeletedAtIsNull("SUPERVISOR"))
-            .thenReturn(Optional.of(role));
-        when(appUserRepository.save(user)).thenReturn(user);
-        var response = service.update(2, new UpdateStoreUserRequest("SUPERVISOR", true), "admin@test.com");
-        assertEquals("SUPERVISOR", response.role());
-        assertTrue(response.active());
-        assertTrue(user.getEmployee().getActive());
-        verify(auditLogRepository).record(eq("employee"), eq("UPDATE"), eq("102"), eq(1), any(), any());
-        verify(auditLogRepository).record(eq("app_user"), eq("UPDATE"), eq("2"), eq(1), any(), any());
-    }
-
-    private AppUser user(int id, String roleName, boolean active) {
-        RetailStore store = new RetailStore();
-        store.setId(7);
+    void returnsEmployeeContactFromPrivateDataUsingFirebaseUid() {
+        String uid = "firebase-uid-42";
+        EmployeeRole role = new EmployeeRole();
+        role.setName("MANAGER");
         Employee employee = new Employee();
-        employee.setId(id + 100);
+        employee.setId(12);
+        employee.setRole(role);
+        employee.setActive(true);
+        RetailStore store = new RetailStore();
+        store.setId(5);
         employee.setStore(store);
-        employee.setName("User");
-        employee.setCpf(ProtectedDataToken.cpf("12345678901"));
-        employee.setActive(active);
-        employee.setRole(role(roleName));
         AppUser user = new AppUser();
-        user.setId(id);
-        user.setEmail(id == 1 ? "admin@test.com" : "user@test.com");
-        user.setCpf(ProtectedDataToken.cpf("12345678901"));
+        user.setId(7);
+        user.setFirebaseUid(uid);
+        user.setActive(true);
         user.setEmployee(employee);
+        when(appUserRepository.findByFirebaseUidAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
+        when(privateDataService.name(employee)).thenReturn("Ana Silva");
+        when(privateDataService.cpfMasked(employee)).thenReturn("***.***.***-**");
+        when(privateDataService.email(employee)).thenReturn("ana@example.com");
+        when(privateDataService.phone(employee)).thenReturn("***-**42");
+        UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
+
+        var response = service.me(uid);
+
+        assertEquals("Ana Silva", response.name());
+        assertEquals("***.***.***-**", response.cpf());
+        assertEquals("ana@example.com", response.email());
+        assertEquals("***-**42", response.phone());
+        assertEquals("MANAGER", response.role());
+        verify(appUserRepository).findByFirebaseUidAndDeletedAtIsNull(uid);
+    }
+
+    @Test
+    void doesNotResolveProfileByEmail() {
+        when(appUserRepository.findByFirebaseUidAndDeletedAtIsNull("email@example.com"))
+                .thenReturn(Optional.empty());
+        UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.me("email@example.com"));
+    }
+
+    @Test
+    void refusesProfileForInactiveStaffAccount() {
+        String uid = "inactive-firebase-uid";
+        AppUser user = profileUser(uid, false);
+        when(appUserRepository.findByFirebaseUidAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
+        UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.me(uid));
+    }
+
+    @Test
+    void returnsStoreForAuthenticatedUid() {
+        String uid = "firebase-uid-42";
+        AppUser user = profileUser(uid, true);
+        RetailStoreResponse expected = new RetailStoreResponse(5, null, null, "Store", "12345678901234",
+                null, null, null, null, true);
+        when(appUserRepository.findByFirebaseUidAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
+        when(retailStoreMapper.toResponse(user.getEmployee().getStore())).thenReturn(expected);
+        UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
+
+        assertEquals(expected, service.myStore(uid));
+        verify(retailStoreMapper).toResponse(user.getEmployee().getStore());
+    }
+
+    @Test
+    void listsAndFindsUsersWithEncryptedStaffContactProjection() {
+        AppUser user = profileUser("firebase-uid-42", true);
+        when(appUserRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(user));
+        when(appUserRepository.findById(7)).thenReturn(Optional.of(user));
+        when(privateDataService.name(user.getEmployee())).thenReturn("Ana Silva");
+        when(privateDataService.cpfMasked(user.getEmployee())).thenReturn("***.***.***-**");
+        when(privateDataService.email(user.getEmployee())).thenReturn("ana@example.com");
+        when(privateDataService.phone(user.getEmployee())).thenReturn("***-**42");
+        UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
+
+        var listed = service.findAll();
+        var found = service.findById(7);
+
+        assertEquals(1, listed.size());
+        assertEquals("Ana Silva", listed.get(0).name());
+        assertEquals("ana@example.com", found.email());
+        assertEquals("***.***.***-**", found.cpf());
+    }
+
+    private static AppUser profileUser(String uid, boolean active) {
+        EmployeeRole role = new EmployeeRole();
+        role.setName("MANAGER");
+        Employee employee = new Employee();
+        employee.setId(12);
+        employee.setRole(role);
+        employee.setActive(active);
+        RetailStore store = new RetailStore();
+        store.setId(5);
+        employee.setStore(store);
+        AppUser user = new AppUser();
+        user.setId(7);
+        user.setFirebaseUid(uid);
         user.setActive(active);
+        user.setEmployee(employee);
         return user;
     }
-
-    private EmployeeRole role(String name) {
-        EmployeeRole role = new EmployeeRole();
-        role.setId(3);
-        role.setName(name);
-        role.setActive(true);
-        return role;
-    }
-
 }

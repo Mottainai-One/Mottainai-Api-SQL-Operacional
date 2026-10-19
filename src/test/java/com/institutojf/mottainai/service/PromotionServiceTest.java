@@ -19,11 +19,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +69,7 @@ class PromotionServiceTest {
         RetailStore store = new RetailStore();
         store.setId(10);
         AppUser manager = userWithRole("MANAGER", 21, 31);
+        grantRole("MANAGER");
         when(inventoryAccess.currentUser(authentication)).thenReturn(manager);
         when(retailStoreRepository.findById(10)).thenReturn(Optional.of(store));
         when(promotionRepository.save(org.mockito.ArgumentMatchers.any(Promotion.class))).thenAnswer(invocation -> {
@@ -97,6 +101,7 @@ class PromotionServiceTest {
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
         promotion.setActive(false);
         AppUser administrator = userWithRole("ADMINISTRATOR", 22, 32);
+        grantRole("ADMINISTRATOR");
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
         when(inventoryAccess.currentUser(authentication)).thenReturn(administrator);
         when(promotionRepository.save(promotion)).thenReturn(promotion);
@@ -116,6 +121,7 @@ class PromotionServiceTest {
         Promotion promotion = promotionInStore(10);
         promotion.setStatus(PromotionStatus.APPROVED);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("ADMINISTRATOR");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("ADMINISTRATOR", 22, 32));
         assertThrows(BusinessException.class, () -> service.rejectPromotion(7, authentication));
         verify(promotionRepository, org.mockito.Mockito.never()).save(promotion);
@@ -129,6 +135,7 @@ class PromotionServiceTest {
         promotion.setStatus(PromotionStatus.APPROVED);
         promotion.setActive(true);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("ADMINISTRATOR");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("ADMINISTRATOR", 22, 32));
         when(promotionRepository.save(promotion)).thenReturn(promotion);
         service.cancelPromotion(7, authentication);
@@ -147,6 +154,7 @@ class PromotionServiceTest {
         promotion.setId(7);
         promotion.setStatus(PromotionStatus.PENDING_APPROVAL);
         when(promotionRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Optional.of(promotion));
+        grantRole("MANAGER");
         when(inventoryAccess.currentUser(authentication)).thenReturn(userWithRole("MANAGER", 21, 31));
         when(promotionRepository.save(promotion)).thenReturn(promotion);
         service.deletePromotion(7, authentication);
@@ -176,6 +184,10 @@ class PromotionServiceTest {
         user.setId(userId);
         user.setEmployee(employee);
         return user;
+    }
+
+    private void grantRole(String role) {
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_" + role))).when(authentication).getAuthorities();
     }
 
 }

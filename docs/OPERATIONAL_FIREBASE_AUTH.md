@@ -1,45 +1,45 @@
-# Firebase authentication for the operational mobile app
+# Firebase authentication for the operational API
 
-The operational Android app signs in with Firebase Email/Password and sends its Firebase ID token as `Authorization: Bearer <id-token>`. The API validates Firebase tokens for the configured project and continues to accept the API-issued JWT for the website. `POST /api/v1/auth/login` remains the CPF/password login for the website.
+The operational app authenticates with Firebase first, then sends the Firebase
+ID token and the API password to `POST /api/v1/auth/login`. The API verifies
+the ID token against the configured Firebase project and uses its verified
+`sub` (UID) to find the corresponding `app_user`; it never trusts a UID supplied
+separately by the client. The API password is checked against the retained
+BCrypt `app_user.password_hash`.
 
-## Firebase token contract
+Active staff accounts must have a Firebase UID. An invitation may be created
+before a Firebase account exists, so its `app_user.firebase_uid` remains null
+until the employee completes onboarding. The invitation completion request
+must include both the one-time invitation token and a Firebase ID token; the
+API validates the token and links that verified UID before activating the
+account. A UID already linked to another app user is rejected.
 
-The token must contain a verified email and the existing custom claim `role`:
+After the login exchange, protected operational API calls must use the
+API-issued access token. The API derives all effective authorities from the
+employee's active database role; Firebase custom role claims are not used for
+authorization. A Firebase ID token is accepted only in the login and invitation
+completion payloads, where the API validates its signature, issuer, audience,
+and expiry and derives the UID from its verified subject.
 
-| Firebase `role` | API authority |
-| --- | --- |
-| `dono` | `ADMINISTRATOR`, `MANAGER` |
-| `gerente` | `MANAGER` |
-| `estoquista` | `OPERATOR` |
+Set `FIREBASE_PROJECT_ID` to the Firebase project's Project ID. The API uses
+Google's published signing keys; do not put service-account credentials or
+private keys in the client or repository. The operational API does not provide
+password recovery. Customer account recovery belongs to the separate customer
+API.
 
-The app's `storeID` claim is not used to grant data access. The API resolves the active employee, store, and company from the relational database using the verified email. This keeps store/company scope owned by SQL while permissions for this Firebase-authenticated mobile request come from the signed Firebase role claim.
+## Staff invitation and locked-account support
 
-## First login and account linking
+Only an administrator can create an employee invitation or resend one with
+`POST /api/v1/employees/{id}/invite`. A store manager who needs to onboard a
+new employee, or resend an expired/undelivered invitation, must ask the
+company administrator. The endpoint only accepts an employee who is inactive
+and has not set an API password.
 
-The employee must already exist as an active `app_user` linked to an active employee, store, and company, with the same email as the verified Firebase account. On the first authorized request, the API stores the verified Firebase UID in `app_user.firebase_uid`. Later requests require both the same UID and email match. One Firebase UID can link to only one staff account.
+An active employee who forgot the API password or cannot sign in cannot reset
+it through this API. The manager should escalate the case to the administrator
+or the support person responsible for staff accounts. Do not deactivate the
+employee to force a new invitation: invitations are only for pending accounts,
+and deactivation is an access-control action that can interrupt store work.
 
-Before deploying the API, have the database owner apply the following SQL to the relational database:
-
-```sql
-ALTER TABLE mottainai.app_user
-    ADD COLUMN firebase_uid VARCHAR(128);
-
-CREATE UNIQUE INDEX uq_app_user_firebase_uid
-    ON mottainai.app_user (firebase_uid)
-    WHERE firebase_uid IS NOT NULL;
-```
-
-Set `FIREBASE_PROJECT_ID` in the API environment to the Firebase project's **Project ID**. Do not put service-account credentials or private keys in the app or repository; the API verifies tokens using Google's published signing keys.
-
-Firebase custom-claim changes become effective for API requests when the client refreshes its ID token; after changing a staff role, force an ID-token refresh in the mobile app before retrying a protected action.
-
-## Request example
-
-```http
-GET /api/v1/auth/profile
-Authorization: Bearer <firebase-id-token>
-```
-
-Use the Firebase ID token for operational mobile API requests. The website continues to use the access token returned by `/api/v1/auth/login`.
-
-The mobile app signs out and changes its password through Firebase. The API's `/api/v1/auth/logout` and `/api/v1/auth/password` endpoints remain for the website's API-issued JWT sessions.
+The staff AES-256-GCM storage and exact SQL expectations are in
+[STAFF_AES_GCM_SCHEMA_CONTRACT.md](STAFF_AES_GCM_SCHEMA_CONTRACT.md).

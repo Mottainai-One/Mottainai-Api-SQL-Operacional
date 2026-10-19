@@ -39,23 +39,10 @@ after verification.
 
 ## Staff schema contract and remaining SQL work
 
-The operational API now stores employee name, e-mail, and phone as readable text,
-normalizing surrounding whitespace and lowercasing e-mail. `app_user.email` is
-kept equal to the employee e-mail so Firebase identity lookup, invitations, and
-staff responses continue to use a readable address. Employee responses return
-these readable fields.
-
-Employee CPF is stored only as `CPF_SHA256_<64 uppercase hex>` in both
-`employee.cpf` and `app_user.cpf`. The API hashes incoming CPF before duplicate
-checks, authentication/bootstrap lookups, and recovery identity checks. CPF
-responses and audit records do not expose the hash or original CPF; they show
-`***`, since the SHA-256 token cannot reveal the final digits. The SQL trigger
-also synchronizes `app_user.cpf` with `employee.cpf`.
-
-The supplied installer still requires protected employee name, e-mail, and phone
-and protected `app_user.email` (constraints around lines 4598–4612). The data team
-must change those four constraints to allow readable text while preserving the
-CPF token constraints and CPF synchronization. Until that SQL update is applied,
-the API's readable staff fields are not compatible with the supplied schema.
-The customer schema tests above do not verify staff writes, authentication, or
-the revised staff SQL contract.
+Staff PII is stored in `employee_private_data` as AES-256-GCM ciphertext and
+nonce `BYTEA` pairs with masks and key metadata. Staff lookup uses verified
+Firebase UID; the API does not use staff HMAC indexes. The expected final
+contract and deployment dependency are documented in
+[STAFF_AES_GCM_SCHEMA_CONTRACT.md](STAFF_AES_GCM_SCHEMA_CONTRACT.md). This
+customer schema test does not verify staff writes, authentication, or the staff
+SQL contract from PR #34.

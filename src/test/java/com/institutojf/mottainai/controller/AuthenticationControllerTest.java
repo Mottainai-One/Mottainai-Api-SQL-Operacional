@@ -1,7 +1,6 @@
 package com.institutojf.mottainai.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.institutojf.mottainai.dto.request.ForgotPasswordRequest;
 import com.institutojf.mottainai.dto.response.TokenResponse;
 import com.institutojf.mottainai.dto.response.UserResponse;
 import com.institutojf.mottainai.service.AuthenticationService;
@@ -56,14 +55,11 @@ class AuthenticationControllerTest {
     }
 
     @Test
-    @DisplayName("Should accept the documented PUT password recovery route")
-    void shouldAcceptPutPasswordRecoveryRequest() throws Exception {
-        mockMvc
-            .perform(put("/api/v1/auth/password-recovery").contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper
-                    .writeValueAsString(new ForgotPasswordRequest("12345678901", "user@mottainai.com"))))
-            .andExpect(status().isNoContent());
-        verify(authenticationService).requestPasswordReset(any());
+    @DisplayName("Does not expose staff password recovery")
+    void doesNotExposeStaffPasswordRecovery() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/password-recovery").contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -72,6 +68,7 @@ class AuthenticationControllerTest {
         mockMvc.perform(post("/api/v1/auth/password-reset").contentType(MediaType.APPLICATION_JSON).content("""
                 {
                   "token": "valid-reset-token",
+                  "firebaseIdToken": "verified-firebase-id-token",
                   "newPassword": "New-Password@42"
                 }
                 """)).andExpect(status().isNoContent());
@@ -79,12 +76,12 @@ class AuthenticationControllerTest {
     }
 
     @Test
-    @DisplayName("Should return access and refresh tokens for CPF login")
-    void shouldLoginByCpf() throws Exception {
+    @DisplayName("Should return access and refresh tokens for Firebase login")
+    void shouldLoginWithFirebaseIdentity() throws Exception {
         when(authenticationService.login(any()))
             .thenReturn(new TokenResponse("access", "refresh", "Bearer", 3600, 604800));
         mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
-                {"cpf":"12345678901","password":"Strong@Password42"}
+                {"firebaseIdToken":"verified-firebase-id-token","password":"Strong@Password42"}
                 """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").value("access"))
@@ -110,27 +107,27 @@ class AuthenticationControllerTest {
     void shouldLogoutMatchingSession() throws Exception {
         UUID sessionId = UUID.randomUUID();
         Jwt jwt = new Jwt("access", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", "admin@example.com", "sid", sessionId.toString()));
+                Map.of("sub", "firebase-staff-uid", "sid", sessionId.toString()));
         mockMvc
             .perform(post("/api/v1/auth/logout").principal(new JwtAuthenticationToken(jwt))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"refresh\"}"))
             .andExpect(status().isNoContent());
-        verify(authenticationService).logout("refresh", "admin@example.com", sessionId);
+        verify(authenticationService).logout("refresh", "firebase-staff-uid", sessionId);
     }
 
     @Test
     @DisplayName("Should return the current profile")
     void shouldReturnProfile() throws Exception {
-        when(userProfileService.me("admin@example.com")).thenReturn(
+        when(userProfileService.me("firebase-staff-uid")).thenReturn(
                 new UserResponse(1, "Admin", "***456789**", "admin@example.com", null, "ADMINISTRATOR", true, 1));
         mockMvc
             .perform(get("/api/v1/auth/profile")
-                .principal(new UsernamePasswordAuthenticationToken("admin@example.com", null)))
+                .principal(new UsernamePasswordAuthenticationToken("firebase-staff-uid", null)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value("admin@example.com"))
             .andExpect(jsonPath("$.cpf").value("***456789**"));
-        verify(userProfileService).me("admin@example.com");
+        verify(userProfileService).me("firebase-staff-uid");
     }
 
     @Test
@@ -138,13 +135,13 @@ class AuthenticationControllerTest {
     void shouldChangePassword() throws Exception {
         mockMvc
             .perform(put("/api/v1/auth/password")
-                .principal(new UsernamePasswordAuthenticationToken("admin@example.com", null))
+                .principal(new UsernamePasswordAuthenticationToken("firebase-staff-uid", null))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"currentPassword":"Old@Password42","newPassword":"New@Password42"}
                         """))
             .andExpect(status().isNoContent());
-        verify(authenticationService).changePassword(any(), eq("admin@example.com"));
+        verify(authenticationService).changePassword(any(), eq("firebase-staff-uid"));
     }
 
 }

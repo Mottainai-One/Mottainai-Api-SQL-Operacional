@@ -1,125 +1,142 @@
-# Mottainai Backend
+# Mottainai Operational API
 
-API REST do Mottainai para gestão de catálogo, fornecedores, empresas, lojas, estoque, alertas, promoções e fidelidade. É uma aplicação Spring Boot com PostgreSQL, autenticação JWT para a equipe e Firebase para o app cliente (perfil, catálogo e fidelidade).
+API Spring Boot para operações de lojas e supermercados: funcionários, empresas,
+lojas, produtos, fornecedores, estoque, pedidos, promoções, alertas e fidelidade.
+Também existem rotas de cliente ainda presentes nesta aplicação; elas são
+transitórias e podem ser separadas em outro serviço posteriormente.
 
-## Requisitos
+## Requisitos e configuração
 
 - Java 21
 - PostgreSQL 15+
-- Maven Wrapper (`bash ./mvnw`)
-- Variáveis em `.env` no diretório raiz (não versionar esse arquivo):
+- Maven Wrapper (`./mvnw` no macOS/Linux; `mvnw.cmd` no Windows)
+
+Crie um `.env` na raiz (não versione esse arquivo). As variáveis principais são:
 
 ```properties
 DB_URL=jdbc:postgresql://localhost:5432/mottainai
-DB_USER=seu_usuario
+DB_USER=seu_login_da_api
 DB_PASSWORD=sua_senha
 JWT_SECRET=<segredo-Base64-com-pelo-menos-32-bytes>
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-FIREBASE_PROJECT_ID=mottainai-cliente
+FIREBASE_PROJECT_ID=seu-firebase-project-id
+STAFF_DATA_ENCRYPTION_KEY=<Base64-de-32-bytes-aleatorios>
+STAFF_DATA_KEY_VERSION=1
+STAFF_DATA_DECRYPTION_KEYS=
 ```
 
-`FIREBASE_PROJECT_ID` é necessário apenas para autenticar chamadas em `/api/v1/client/**`. O JWT interno usa `JWT_SECRET` e o Firebase usa as chaves públicas oficiais para validar tokens de clientes.
+SMTP (`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`) é usado para
+convites de funcionários. `CORS_ALLOWED_ORIGINS` pode ser definido conforme o
+endereço do site. Nunca coloque segredos reais no Git.
 
-## Banco de dados
+## Banco e acesso
 
-A configuração padrão mantém o Flyway desabilitado e valida o mapeamento JPA (`spring.jpa.hibernate.ddl-auto=validate`). O provisionamento e as alterações estruturais pertencem à equipe de dados, no repositório `Mottainai-Banco-Operacional`, branch `develop`, diretório `database/operational`.
+A API não instala nem migra o banco. A publicação depende do instalador
+operacional do repositório `Mottainai-Banco-Operacional` (PR #34), incluindo a
+tabela `mottainai.employee_private_data` e suas políticas RLS. A API usa
+`spring.jpa.hibernate.ddl-auto=validate`: ela não inicia se uma tabela ou coluna
+JPA esperada estiver faltando. Isso não valida a lógica das políticas RLS; antes
+de liberar uma versão, a equipe deve executar os testes de compatibilidade do
+banco com a role real `mottainai_api` e confirmar que o isolamento por empresa
+está ativo. A ordem de publicação é: aplicar e validar o instalador do banco,
+depois publicar a API. Não publique a API contra um banco que ainda não passou
+essa validação. Flyway fica desativado também no perfil `local`.
 
-As migrations V1–V9 são históricas e não representam o schema operacional completo. A V10 depende das tabelas operacionais, de colunas usadas nas views e da role `mottainai_api`; não deve ser aplicada sobre um banco vazio provisionado apenas pelas migrations antigas. O perfil `local` aponta para `classpath:db/migration-local`, atualmente sem scripts, e não aplica a V10 de `db/migration`.
+`mottainai_api` é uma role `NOLOGIN`. `DB_USER` deve ser uma role de login
+dedicada, não privilegiada, com `INHERIT` e membro de `mottainai_api`. Ela não
+deve ser superuser nem ter `BYPASSRLS`, pois isso contornaria o isolamento por
+loja/empresa. A role e a senha de login devem ser provisionadas pela equipe de
+dados; o instalador não deve ser executado usando as credenciais de runtime da
+API.
 
-A integração do app cliente também depende de `mottainai.customer.external_auth_uid`, anulável para cadastros SQL antigos e único entre identidades Firebase vinculadas. No schema protegido, essa coluna armazena o token SHA-256 do UID, não o UID em claro. Essa coluna não é criada pela API em runtime: confirme a estrutura no instalador fornecido pela equipe de dados antes de conectar o ambiente de teste.
+## Autenticação operacional
 
-O contrato de resposta de clientes foi reduzido aos dados disponíveis no schema protegido: `id`, `birthYear`, `active`, `marketingConsent`, `createdAt` e `updatedAt`. Nome, CPF, e-mail, telefone e endereço não são recuperáveis dos tokens e não são devolvidos. Essa mudança exige adaptação dos consumidores; veja [contrato de cliente e transição](docs/PROTECTED_CUSTOMER_CONTRACT.md).
+1. O app autentica o funcionário no Firebase.
+2. Envia o Firebase ID token e a senha da API para `POST /api/v1/auth/login`.
+   A API verifica o token e usa somente o `sub` validado como Firebase UID; não
+   aceita UID fornecido separadamente.
+3. Nas demais rotas operacionais, use o access token emitido pela API:
 
-Antes de publicar a API, a equipe de dados deve disponibilizar o schema compatível e as funções/permissões acordadas. Só depois devem ser aplicadas as views, índices e funções necessárias aos repositories. A inicialização da API valida o resultado; ativar Flyway não substitui esse provisionamento. Os ajustes de RLS, autenticação e sessões precisam ser validados em PostgreSQL com a role real da API, sem usar proprietário, superusuário ou `BYPASSRLS`.
-
-## Executar
-
-```bash
-bash ./mvnw spring-boot:run
+```http
+Authorization: Bearer <api-access-token>
 ```
 
-Documentação interativa:
+O bearer de funcionário deve ser um JWT da API, nunca um Firebase ID token
+direto. As permissões são calculadas pelo cargo ativo no banco, não por custom
+claims do Firebase:
+
+| Cargo do banco | Authorities da API |
+| --- | --- |
+| Administrator | `ADMINISTRATOR`, `MANAGER` |
+| Manager | `MANAGER` |
+| Supervisor | `SUPERVISOR` |
+| Operator | `OPERATOR` |
+| Intern | `INTERN` |
+
+`POST /api/v1/auth/refresh` rotaciona o refresh token. `POST
+/api/v1/auth/logout` revoga a sessão; alterar a senha, desativar a conta ou
+mudar seu cargo também revoga sessões. O app deve exigir novo login ao receber
+`401` por sessão expirada ou revogada.
+
+Não há recuperação operacional de senha por CPF/e-mail. `GET
+/api/v1/auth/password-reset/validate` e `POST /api/v1/auth/password-reset` são
+somente para concluir um convite de funcionário: são necessários o token de
+convite e um Firebase ID token válido. Convites podem existir antes da criação
+da conta Firebase; uma conta só é ativada após associar o UID verificado.
+
+### Convites e contas sem acesso
+
+- Funcionário novo, ainda sem senha: um **administrador** cria o cadastro e
+  envia o convite. Se o link vencer ou não chegar, o administrador pode
+  reenviá-lo em `POST /api/v1/employees/{id}/invite`.
+- Gerente de loja: não pode reenviar convites por essa rota. Deve pedir ao
+  administrador da empresa que envie ou reenvie o convite.
+- Funcionário já ativo que esqueceu a senha ou ficou bloqueado: a API não tem
+  recuperação de senha para esse caso. O gerente deve encaminhar o caso ao
+  administrador/suporte responsável pelo acesso. Não desative e recrie o
+  cadastro para contornar o bloqueio: o reenvio de convite só funciona para
+  funcionário inativo e sem senha.
+
+## PII de funcionários
+
+Nome, CPF, e-mail e telefone não ficam em claro nem em HMAC no banco. A API os
+armazena em `mottainai.employee_private_data` como ciphertext/nonce `BYTEA`
+AES-256-GCM, com máscaras e `key_version`. CPF é exibido mascarado; contatos e
+nome podem ser retornados pela API a consumidores autorizados. A chave é
+externa ao banco e ao repositório.
+
+Ao rotacionar a chave, atualize `STAFF_DATA_ENCRYPTION_KEY` e
+`STAFF_DATA_KEY_VERSION`. Preserve as chaves antigas necessárias à leitura em
+`STAFF_DATA_DECRYPTION_KEYS`, no formato `versao:chaveBase64`, separadas por
+vírgula (por exemplo, `1:<chave-antiga>`). O `key_version` persistido escolhe a
+chave de decrypt; se uma versão antiga não estiver configurada, a API falha
+explicitamente em vez de tentar decifrar com a chave ativa.
+
+## Rotas e documentação
+
+Os endpoints operacionais incluem `/api/v1/auth`, `/api/v1/employees`,
+`/api/v1/companies`, `/api/v1/stores`, `/api/v1/products`, `/api/v1/suppliers`,
+`/api/v1/inventory`, `/api/v1/purchase-orders`, `/api/v1/promotions`,
+`/api/v1/alerts` e outros módulos operacionais. Consulte o OpenAPI para métodos,
+parâmetros, corpos e permissões exatos.
+
+Rotas de cliente ainda existentes nesta aplicação incluem `/api/v1/client/**`,
+`/api/v1/customer-catalog/**` e partes de `/api/v1/customers/**`; seus contratos
+não substituem o fluxo de autenticação operacional.
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8080/api-docs`
 - Health check: `http://localhost:8080/actuator/health`
 
-## Autenticação e autorização
+## Executar e testar
 
-### Equipe
-
-1. Faça `POST /api/v1/auth/login` com `cpf` (11 dígitos) e `password`.
-2. A resposta contém `accessToken`, `refreshToken`, `tokenType`, `expiresIn` e `refreshExpiresIn`; os prazos são em segundos.
-3. Envie o access token nas rotas de equipe:
-
-```http
-Authorization: Bearer <jwt>
+```powershell
+./mvnw.cmd spring-boot:run
+./mvnw.cmd test
 ```
 
-`POST /api/v1/auth/refresh` recebe `refreshToken` e devolve um novo par de tokens, rotacionando o refresh token. Serialize as renovações e descarte o refresh anterior. `POST /api/v1/auth/logout` recebe `refreshToken` no corpo e exige o access token no cabeçalho.
+No macOS/Linux, use `./mvnw` nos mesmos comandos. A compilação não requer
+conexão com o banco; a inicialização completa precisa de um schema PR #34
+instalado e de uma role de runtime que respeite RLS.
 
-Troca de senha, desativação e mudança de cargo revogam as sessões do funcionário. Após essas operações, o app deve exigir novo login quando receber `401`.
-
-`PUT /api/v1/auth/password-recovery` recebe `cpf` e `email` para enviar um link. `GET /api/v1/auth/password-reset/validate?token=...` valida o link e `POST /api/v1/auth/password-reset` recebe `token` e `newPassword`. Funcionários convidados usam o link para definir a senha e ativar a conta; o administrador pode reenviar o convite por `POST /api/v1/employees/{id}/invite`.
-
-As rotas operacionais exigem JWT da API. Escritas exigem `ADMINISTRATOR` ou `MANAGER`, com restrições adicionais por rota e escopo da empresa/loja. Tokens Firebase não substituem a autenticação de funcionários.
-
-### Cliente (fidelidade)
-
-As rotas em `/api/v1/client/**` e `/api/v1/customer-catalog/**` exigem um Firebase ID token. A API transforma o `sub` em token protegido para consultar `customer.external_auth_uid` nas operações que dependem de um cliente SQL ativo; o catálogo só exige a identidade Firebase válida.
-
-```http
-Authorization: Bearer <firebase-id-token>
-```
-
-Esse fluxo permanece Firebase e identifica o cliente pelo UID, sem procurar outro cliente por e-mail caso o UID não exista.
-
-O app cria o perfil SQL com `POST /api/v1/client/auth/profile`, consulta-o em `GET /api/v1/client/auth/profile` e atualiza nome, telefone e consentimento com `PUT`. O cadastro usa o e-mail do token Firebase e associa o UID ao cliente SQL; CPF ou e-mail já vinculados a outro cadastro resultam em conflito. A renovação do ID token e o logout no dispositivo são feitos pelo SDK Firebase, sem enviar refresh tokens ao backend. `signOut()` encerra a sessão no dispositivo; não revoga imediatamente um ID token já emitido. Veja a [gestão de sessões Firebase](https://firebase.google.com/docs/auth/admin/manage-sessions).
-
-O catálogo público para clientes possui `GET /api/v1/customer-catalog/stores`, `GET /stores/{id}`, `GET /promotions` e `GET /promotions/{id}` sob o prefixo `/api/v1/customer-catalog`. As listagens aceitam `page` e `size`; lojas e promoções aceitam `query`, e promoções também aceitam `storeId`. O filtro geográfico de lojas aceita `latitude`, `longitude` e `radiusKm` juntos. Promoções retornadas são aprovadas, vigentes e ligadas a lojas ativas; imagens só devem ser exibidas quando o contrato fornecer uma URL.
-
-As rotas documentadas `/api/v1/customers/auth/**` usam a conta SQL em `customer_auth` e emitem JWT interno; esse JWT não é aceito nas rotas Firebase de `/api/v1/client/**`. O perfil SQL está em `GET /api/v1/customers/auth/profile`, exclusivo de `CUSTOMER`. O fluxo SQL continua emitindo somente access token; não deve substituir a sessão Firebase do app.
-
-## Endpoints
-
-| Módulo | Rotas |
-| --- | --- |
-| Autenticação | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/profile` |
-| Senha de funcionário | `PUT /api/v1/auth/password-recovery`, `GET /api/v1/auth/password-reset/validate`, `POST /api/v1/auth/password-reset`, `PUT /api/v1/auth/password` |
-| Funcionários | `POST /api/v1/employees`; `GET /api/v1/employees-store`, `GET /api/v1/employees-company`; `GET, PUT, DELETE /api/v1/employees/{id}`; `PUT /api/v1/employees/{id}/status`; `POST /api/v1/employees/{id}/invite` |
-| Histórico de funcionário | `GET /api/v1/employees/{id}/audit-logs`, `GET /api/v1/employees/{id}/shifts`, `GET /api/v1/employees/{id}/cancel-request` |
-| Estoque | `GET, POST /api/v1/inventory`; `GET, PUT, DELETE /api/v1/inventory/{id}`; `GET /api/v1/inventory/barcode/{barcode}`; `GET /api/v1/inventory/expiring`; `GET, POST /api/v1/inventory/{id}/movements` |
-| Contagens | `GET, POST /api/v1/inventory-counts`; `GET /api/v1/inventory-counts/{id}`; `POST /api/v1/inventory-counts/{id}/items`; `PUT, DELETE /api/v1/inventory-counts/{id}/items/{itemId}`; `POST /api/v1/inventory-counts/{id}/finish` |
-| Perfil cliente | `GET, POST, PUT /api/v1/client/auth/profile` |
-| Catálogo cliente | `GET /api/v1/customer-catalog/stores`, `/stores/{id}`, `/promotions`, `/promotions/{id}` |
-| Fidelidade do cliente | `GET /api/v1/client/loyalty/balance`, `GET /api/v1/client/loyalty/transactions`, `POST /api/v1/client/loyalty/redeem` |
-
-Esta tabela destaca os contratos de integração afetados pela revisão. Consulte `/api-docs` ou o Swagger para a lista completa de rotas, DTOs, parâmetros e códigos HTTP; nem toda listagem possui paginação.
-
-### Substituição das rotas antigas de equipe
-
-| Rota antiga | Contrato atual |
-| --- | --- |
-| `GET /api/v1/users/me` | `GET /api/v1/auth/profile` |
-| `GET /api/v1/stores/me` | Obter `storeId` no perfil e consultar `GET /api/v1/stores/{id}` |
-| `GET /api/v1/store-users` | `GET /api/v1/employees-store`; administradores também podem consultar `/employees-company` |
-| `GET /api/v1/store-users/{id}` | `GET /api/v1/employees/{id}` |
-| `POST /api/v1/store-users/invite` | `POST /api/v1/employees`; reenvio em `POST /api/v1/employees/{id}/invite` |
-| `PATCH /api/v1/store-users/{id}` | `PUT /api/v1/employees/{id}`; status em `PUT /api/v1/employees/{id}/status` |
-
-As novas rotas usam o ID de `employee`, não o ID de `app_user`. Os corpos e as permissões também devem seguir o OpenAPI atual; trocar apenas a URL não basta.
-
-### Concorrência, histórico e idempotência
-
-Atualizações de produto e inventário exigem `version` obtido na leitura. Em `409 Conflict`, recarregue os dados antes de permitir uma nova edição. Consultas de movimentação exigem `from` e `to` em ISO date-time, com início menor ou igual ao fim e intervalo máximo de seis meses.
-
-Envie `Idempotency-Key` nas operações críticas que o OpenAPI exigir, incluindo resgate de fidelidade, criação de movimentação, finalização de contagem e recebimento de transferência. Gere uma chave por intenção e reutilize-a apenas para repetir a mesma requisição; nunca gere outra chave automaticamente para contornar um conflito.
-
-## Validação
-
-```bash
-bash ./mvnw -q -DskipTests compile
-bash ./mvnw test
-```
-
-A compilação não requer acesso ao banco. A suíte que carrega o contexto integral requer `DB_URL`, `DB_USER` e `DB_PASSWORD` válidos e um schema compatível.
+O contrato detalhado de dados protegidos está em
+[`docs/STAFF_AES_GCM_SCHEMA_CONTRACT.md`](docs/STAFF_AES_GCM_SCHEMA_CONTRACT.md).

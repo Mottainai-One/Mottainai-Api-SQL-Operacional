@@ -2,14 +2,12 @@ package com.institutojf.mottainai.service;
 
 import com.institutojf.mottainai.config.PasswordProperties;
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
-import com.institutojf.mottainai.dto.request.ForgotPasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
 import com.institutojf.mottainai.dto.response.TokenResponse;
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.model.Employee;
-import com.institutojf.mottainai.model.PasswordResetToken;
 import com.institutojf.mottainai.model.enums.PasswordTokenType;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
@@ -19,13 +17,13 @@ import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.JwtProperties;
 import com.institutojf.mottainai.security.JwtService;
+import com.institutojf.mottainai.security.StaffRoleAuthorities;
 import com.institutojf.mottainai.security.TokenHashService;
-import com.institutojf.mottainai.security.ProtectedDataToken;
+import com.institutojf.mottainai.security.FirebaseTokenVerifier;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.MailException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -37,8 +35,6 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -54,10 +50,6 @@ import java.util.UUID;
 @Service
 public class AuthenticationService {
 
-    private static final int RATE_LIMIT_MINUTES = 5;
-
-    private static final int RESET_TOKEN_EXPIRATION_MINUTES = 15;
-
     private final AuthenticationManager authenticationManager;
 
     private final AppUserRepository appUserRepository;
@@ -71,10 +63,6 @@ public class AuthenticationService {
     private final StaffSessionRepository staffSessionRepository;
 
     private final AuditLogRepository auditLogRepository;
-
-    private final PasswordResetEmailService passwordResetEmailService;
-
-    private final StaffEmailFailureService emailFailureService;
 
     private final RlsContextService rlsContextService;
 
@@ -90,25 +78,28 @@ public class AuthenticationService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final FirebaseTokenVerifier firebaseTokenVerifier;
+
     private final EntityManager entityManager;
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
+        String firebaseUid = firebaseTokenVerifier.verifiedUid(request.firebaseIdToken());
         Authentication authentication = authenticationManager
-            .authenticate(UsernamePasswordAuthenticationToken.unauthenticated(request.cpf(), request.password()));
-        AppUser user = activeUser(authentication.getName());
+            .authenticate(UsernamePasswordAuthenticationToken.unauthenticated(firebaseUid, request.password()));
+        AppUser user = activeUser(firebaseUid);
         entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
         Employee employee = user.getEmployee();
         if (employee == null) {
-            throw new BadCredentialsException("Invalid CPF or password");
+            throw new BadCredentialsException("Invalid Firebase identity or password");
         }
         entityManager.refresh(employee, LockModeType.PESSIMISTIC_WRITE);
-        if (!ProtectedDataToken.cpf(request.cpf()).equals(employee.getCpf()) || !Boolean.TRUE.equals(user.getActive())
+        if (!firebaseUid.equals(user.getFirebaseUid()) || !Boolean.TRUE.equals(user.getActive())
                 || user.getDeletedAt() != null || !Boolean.TRUE.equals(employee.getActive())
                 || employee.getDeletedAt() != null || employee.getRole() == null
                 || !Boolean.TRUE.equals(employee.getRole().getActive()) || employee.getRole().getDeletedAt() != null
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new BadCredentialsException("Invalid CPF or password");
+            throw new BadCredentialsException("Invalid Firebase identity or password");
         }
         Authentication currentAuthentication = authenticationFor(user);
         appUserRepository.updateLastLogin(user.getId(), LocalDateTime.now(ZoneOffset.UTC));
@@ -131,7 +122,7 @@ public class AuthenticationService {
             throw new BadCredentialsException("Invalid refresh token", exception);
         }
         if (!"refresh".equals(token.getClaimAsString("use"))
-                || !rlsContextService.bootstrapByEmail(token.getSubject())) {
+                || !rlsContextService.bootstrapByFirebaseUid(token.getSubject())) {
             throw new BusinessException("Invalid refresh token");
         }
         AppUser user = activeUser(token.getSubject());
@@ -148,94 +139,66 @@ public class AuthenticationService {
     }
 
     @Transactional
-    public void logout(String rawRefreshToken, String email, UUID sessionId) {
-        AppUser user = activeUser(email);
+    public void logout(String rawRefreshToken, String firebaseUid, UUID sessionId) {
+        AppUser user = activeUser(firebaseUid);
         if (!staffSessionRepository.revoke(sessionId, tokenHashService.hash(rawRefreshToken), user.getId())) {
             throw new BusinessException("Invalid refresh token");
         }
     }
 
-    // A resposta é a mesma para não revelar quais CPFs e emails possuem conta
-    @Transactional
-    public void requestPasswordReset(ForgotPasswordRequest request) {
-        if (!rlsContextService.bootstrapByCpf(request.cpf())) {
-            if (rlsContextService.bootstrapInvitedByCpf(request.cpf())) {
-                appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(StaffContactData.email(request.email()))
-                    .filter(user -> ProtectedDataToken.cpf(request.cpf()).equals(user.getEmployee().getCpf())
-                            && !Boolean.TRUE.equals(user.getActive())
-                            && invitationTokenRepository.hasPendingForUser(user.getId()))
-                    .ifPresent(user -> renewInvitation(user, request));
-            }
-            return;
-        }
-        appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(StaffContactData.email(request.email()))
-            .filter(user -> ProtectedDataToken.cpf(request.cpf()).equals(user.getEmployee().getCpf()))
-            .ifPresent(user -> createRecoveryToken(user, request));
-    }
-
     @Transactional(readOnly = true)
     public boolean validateResetToken(String rawToken) {
         String hash = tokenHashService.hash(rawToken);
-        return rlsContextService.bootstrapByToken(hash, PasswordTokenType.PASSWORD_RESET.name()) != null
-                || rlsContextService.bootstrapByToken(hash, PasswordTokenType.EMPLOYEE_INVITATION.name()) != null;
+        return rlsContextService.bootstrapByToken(hash, PasswordTokenType.EMPLOYEE_INVITATION.name()) != null;
     }
 
     /**
-     * Atualiza a senha somente quando o token de recuperação ou convite está válido As
-     * sessões existentes são revogadas para bloquear tokens emitidos antes da troca
+     * Conclui um convite usando o token de convite e um Firebase ID token validado.
+     * As duas credenciais são necessárias para vincular a identidade Firebase à conta pendente.
      */
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         validateNewPassword(request.newPassword());
+        String firebaseUid = firebaseTokenVerifier.verifiedUid(request.firebaseIdToken());
         // Busca apenas o hash do token para não persistir o valor recebido por email
         String hash = tokenHashService.hash(request.token());
-        Integer userId = rlsContextService.bootstrapByToken(hash, PasswordTokenType.PASSWORD_RESET.name());
-        boolean invitation = false;
+        Integer userId = rlsContextService.bootstrapByToken(hash, PasswordTokenType.EMPLOYEE_INVITATION.name());
         if (userId == null) {
-            userId = rlsContextService.bootstrapByToken(hash, PasswordTokenType.EMPLOYEE_INVITATION.name());
-            invitation = true;
-        }
-        if (userId == null) {
-            throw new BusinessException("Invalid or expired reset token");
+            throw new BusinessException("Invalid or expired invitation token");
         }
         AppUser user = appUserRepository.findByIdWithWriteLock(userId)
-            .orElseThrow(() -> new BusinessException("Invalid or expired reset token"));
-        if (invitation) {
-            var token = invitationTokenRepository.findUnusedByHashForUpdate(hash)
-                .orElseThrow(() -> new BusinessException("Invalid or expired reset token"));
-            if (!token.userId().equals(userId) || !token.expiresAt().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
-                throw new BusinessException("Invalid or expired reset token");
-            }
-            user.getEmployee().setActive(true);
-            user.setActive(true);
-            user.setPasswordSet(true);
-            employeeRepository.save(user.getEmployee());
-            invitationTokenRepository.markUsed(token.id());
-            auditLogRepository.record("employee", "UPDATE", user.getEmployee().getId().toString(), userId,
-                    Map.of("active", false), Map.of("active", true));
+            .orElseThrow(() -> new BusinessException("Invalid or expired invitation token"));
+        var invitation = invitationTokenRepository.findUnusedByHashForUpdate(hash)
+                .orElseThrow(() -> new BusinessException("Invalid or expired invitation token"));
+        if (!invitation.userId().equals(userId)
+                || !invitation.expiresAt().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new BusinessException("Invalid or expired invitation token");
         }
-        else {
-            PasswordResetToken token = passwordResetTokenRepository
-                .findUnusedByHashForUpdate(hash, PasswordTokenType.PASSWORD_RESET)
-                .orElseThrow(() -> new BusinessException("Invalid or expired reset token"));
-            if (!token.getUser().getId().equals(userId)
-                    || !token.getExpiresAt().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
-                throw new BusinessException("Invalid or expired reset token");
-            }
-            token.setUsedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            passwordResetTokenRepository.save(token);
+        if (user.getFirebaseUid() != null && !user.getFirebaseUid().equals(firebaseUid)) {
+            throw new BusinessException("Invitation is already linked to another Firebase account");
         }
+        if (appUserRepository.existsByFirebaseUid(firebaseUid) && !firebaseUid.equals(user.getFirebaseUid())) {
+            throw new BusinessException("Firebase account is already linked to another user");
+        }
+        user.setFirebaseUid(firebaseUid);
+        user.getEmployee().setActive(true);
+        user.setActive(true);
+        user.setPasswordSet(true);
+        employeeRepository.save(user.getEmployee());
+        invitationTokenRepository.markUsed(invitation.id());
+        auditLogRepository.record("employee", "UPDATE", user.getEmployee().getId().toString(), userId,
+                Map.of("active", false), Map.of("active", true));
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         appUserRepository.save(user);
         passwordResetTokenRepository.invalidateUnusedForUser(userId, OffsetDateTime.now(ZoneOffset.UTC));
         staffSessionRepository.revokeAllForUser(userId);
         auditLogRepository.record("app_user", "UPDATE", userId.toString(), userId, null,
-                Map.of("password_changed", true, "activated", invitation));
+                Map.of("password_changed", true, "activated", true, "firebase_uid_linked", true));
     }
 
     @Transactional
-    public void changePassword(ChangePasswordRequest request, String email) {
-        AppUser user = appUserRepository.findActiveByEmailWithWriteLock(StaffContactData.email(email))
+    public void changePassword(ChangePasswordRequest request, String firebaseUid) {
+        AppUser user = appUserRepository.findActiveByFirebaseUidWithWriteLock(firebaseUid)
             .orElseThrow(() -> new BusinessException("User is unavailable"));
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
             throw new BusinessException("Current password is incorrect");
@@ -249,98 +212,28 @@ public class AuthenticationService {
                 Map.of("password_changed", true));
     }
 
-    private void createRecoveryToken(AppUser user, ForgotPasswordRequest request) {
-        appUserRepository.findByIdWithWriteLock(user.getId())
-            .orElseThrow(() -> new BusinessException("User is unavailable"));
-        if (!appUserRepository.matchesCurrentIdentity(user.getId(), StaffContactData.email(request.email()),
-                ProtectedDataToken.cpf(request.cpf()), true)) {
-            return;
-        }
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        boolean recent = passwordResetTokenRepository
-            .findFirstByUser_IdAndTokenTypeAndUsedAtIsNullOrderByCreatedAtDesc(user.getId(),
-                    PasswordTokenType.PASSWORD_RESET)
-            .map(token -> token.getCreatedAt().plusMinutes(RATE_LIMIT_MINUTES).isAfter(now))
-            .orElse(false);
-        if (recent) {
-            return;
-        }
-        String rawToken = tokenHashService.newToken();
-        PasswordResetToken token = new PasswordResetToken();
-        token.setUser(user);
-        token.setTokenHash(tokenHashService.hash(rawToken));
-        token.setTokenType(PasswordTokenType.PASSWORD_RESET);
-        token.setCreatedAt(now);
-        token.setExpiresAt(now.plusMinutes(RESET_TOKEN_EXPIRATION_MINUTES));
-        passwordResetTokenRepository.save(token);
-        String tokenHash = token.getTokenHash();
-        afterCommit(() -> {
-            try {
-                passwordResetEmailService.sendRecoveryLink(StaffContactData.email(request.email()), rawToken);
-            }
-            catch (MailException exception) {
-                log.error("Recovery email delivery failed for user {}", user.getId(), exception);
-                try {
-                    emailFailureService.invalidateRecoveryToken(tokenHash);
-                }
-                catch (RuntimeException cleanupException) {
-                    log.error("Could not invalidate undelivered recovery token for user {}", user.getId(),
-                            cleanupException);
-                }
-            }
-        });
-    }
-
-    // Renova o convite ainda pendente após confirmar CPF e email sob bloqueio
-    private void renewInvitation(AppUser user, ForgotPasswordRequest request) {
-        appUserRepository.findByIdWithWriteLock(user.getId())
-            .orElseThrow(() -> new BusinessException("User is unavailable"));
-        if (!appUserRepository.matchesCurrentIdentity(user.getId(), StaffContactData.email(request.email()),
-                ProtectedDataToken.cpf(request.cpf()), false)
-                || !invitationTokenRepository.hasPendingForUser(user.getId())) {
-            return;
-        }
-        if (invitationTokenRepository.hasRecentForUser(user.getId(),
-                OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(RATE_LIMIT_MINUTES))) {
-            return;
-        }
-        invitationTokenRepository.invalidateUnusedForUser(user.getId());
-        String rawToken = tokenHashService.newToken();
-        invitationTokenRepository.create(user.getId(), tokenHashService.hash(rawToken),
-                OffsetDateTime.now(ZoneOffset.UTC).plusHours(48));
-        afterCommit(() -> {
-            try {
-                passwordResetEmailService.sendInvitationLink(StaffContactData.email(request.email()), rawToken);
-            }
-            catch (MailException exception) {
-                log.error("Invitation email delivery failed for user {}", user.getId(), exception);
-                try {
-                    emailFailureService.invalidateInvitationToken(tokenHashService.hash(rawToken));
-                }
-                catch (RuntimeException cleanupException) {
-                    log.error("Could not invalidate undelivered invitation for user {}", user.getId(),
-                            cleanupException);
-                }
-            }
-        });
-    }
-
     private TokenResponse tokenResponse(Authentication authentication, AppUser user, UUID sessionId, String refreshToken) {
         return new TokenResponse(jwtService.generateAccessToken(authentication, sessionId), refreshToken, "Bearer",
                 jwtProperties.expirationMinutes() * 60, jwtProperties.refreshExpirationDays() * 24 * 60 * 60);
     }
 
-    // Busca somente a conta ativa associada ao email autenticado
-    private AppUser activeUser(String email) {
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(StaffContactData.email(email))
+    // Resolve a conta pelo identificador de Firebase já verificado.
+    private AppUser activeUser(String firebaseUid) {
+        return appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(firebaseUid)
             .orElseThrow(() -> new BusinessException("User is unavailable"));
     }
 
     // Reconstrói as permissões atuais do funcionário para emitir novos tokens
     private Authentication authenticationFor(AppUser user) {
         String role = user.getEmployee().getRole().getName().toUpperCase(Locale.ROOT);
-        return UsernamePasswordAuthenticationToken.authenticated(user.getEmail(), null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        List<SimpleGrantedAuthority> authorities = StaffRoleAuthorities.forDatabaseRole(role).stream()
+                .map(authority -> new SimpleGrantedAuthority("ROLE_" + authority))
+                .toList();
+        if (authorities.isEmpty()) {
+            throw new BusinessException("Employee role is not supported for API authentication");
+        }
+        return UsernamePasswordAuthenticationToken.authenticated(
+                user.getFirebaseUid(), null, authorities);
     }
 
     // Lê o identificador da sessão do JWT e rejeita valores inválidos
@@ -370,16 +263,6 @@ public class AuthenticationService {
             throw new BusinessException(
                     "Password must contain uppercase, lowercase, number and special character and must not contain predictable terms");
         }
-    }
-
-    // Executa o envio de email somente após a confirmação da transação
-    private void afterCommit(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
     }
 
 }

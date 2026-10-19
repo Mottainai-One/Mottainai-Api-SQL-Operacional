@@ -6,10 +6,10 @@ import com.institutojf.mottainai.model.CustomerAuth;
 import com.institutojf.mottainai.repository.CustomerAuthRepository;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -41,11 +41,14 @@ class StaffAccessFilterTest {
     @Mock
     private CustomerAuthRepository customerAuthRepository;
 
-    @Mock
-    private FirebaseProperties firebaseProperties;
-
-    @InjectMocks
     private StaffAccessFilter filter;
+
+    private JwtProperties jwtProperties = new JwtProperties("secret", "https://mottainai.local", 60, 7);
+
+    @BeforeEach
+    void setUp() {
+        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties);
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -80,43 +83,21 @@ class StaffAccessFilterTest {
     }
 
     @Test
-    @DisplayName("Should validate an operational Firebase staff token")
-    void shouldAllowValidFirebaseStaffSession() throws Exception {
-        when(firebaseProperties.projectId()).thenReturn("mottainai-operational");
-        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties);
+    @DisplayName("Should reject Firebase bearer tokens even if their role claim says owner")
+    void shouldRejectFirebaseBearerWithOwnerRoleClaim() throws Exception {
         Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
                 Map.of("sub", "staff-uid", "email", "operator@mottainai.com",
-                        "iss", "https://securetoken.google.com/mottainai-operational"));
-        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
-        when(rlsContextService.validateFirebaseStaffToken(jwt)).thenReturn(true);
-        FilterChain chain = mock(FilterChain.class);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        filter.doFilter(request, response, chain);
-
-        verify(rlsContextService).validateFirebaseStaffToken(jwt);
-        verify(chain).doFilter(request, response);
-        verifyNoInteractions(customerAuthRepository);
-    }
-
-    @Test
-    @DisplayName("Should reject Firebase staff when operational account validation fails")
-    void shouldRejectInvalidFirebaseStaffSession() throws Exception {
-        when(firebaseProperties.projectId()).thenReturn("mottainai-operational");
-        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, firebaseProperties);
-        Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
-                Map.of("sub", "staff-uid", "iss", "https://securetoken.google.com/mottainai-operational"));
-        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+                        "iss", "https://securetoken.google.com/mottainai-operational", "role", "dono"));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"), new SimpleGrantedAuthority("ROLE_MANAGER"))));
         FilterChain chain = mock(FilterChain.class);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(new MockHttpServletRequest(), response, chain);
 
-        assertEquals(401, response.getStatus());
+        assertEquals(403, response.getStatus());
         assertNull(SecurityContextHolder.getContext().getAuthentication());
-        verify(rlsContextService).validateFirebaseStaffToken(jwt);
-        verifyNoInteractions(chain, customerAuthRepository);
+        verifyNoInteractions(rlsContextService, chain, customerAuthRepository);
     }
 
     @Test
@@ -124,7 +105,7 @@ class StaffAccessFilterTest {
     void shouldAllowCustomerWithoutStaffSessionBootstrap() throws Exception {
         String loginToken = ProtectedDataToken.email("ana@example.com");
         Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", loginToken, "use", "access"));
+                Map.of("sub", loginToken, "use", "access", "iss", jwtProperties.issuer()));
         Customer customer = new Customer();
         customer.setActive(true);
         CustomerAuth customerAuth = new CustomerAuth();
@@ -149,7 +130,7 @@ class StaffAccessFilterTest {
 
     private Jwt token() {
         return new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", "admin@example.com", "use", "access"));
+                Map.of("sub", "firebase-staff-uid", "use", "access", "iss", jwtProperties.issuer()));
     }
 
 }

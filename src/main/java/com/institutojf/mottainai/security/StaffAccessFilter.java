@@ -13,7 +13,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Set;
 import java.time.ZoneId;
-import java.util.Objects;
 
 /**
  * Revalida o JWT interno contra a conta e a sessão antes de liberar a requisição.
@@ -24,13 +23,13 @@ public class StaffAccessFilter extends OncePerRequestFilter {
 
     private final CustomerAuthRepository customerAuthRepository;
 
-    private final String firebaseIssuer;
+    private final String apiIssuer;
 
     public StaffAccessFilter(RlsContextService rlsContextService, CustomerAuthRepository customerAuthRepository,
-            FirebaseProperties firebaseProperties) {
+            JwtProperties jwtProperties) {
         this.rlsContextService = rlsContextService;
         this.customerAuthRepository = customerAuthRepository;
-        this.firebaseIssuer = "https://securetoken.google.com/" + firebaseProperties.projectId();
+        this.apiIssuer = jwtProperties.issuer();
     }
 
     @Override
@@ -43,18 +42,16 @@ public class StaffAccessFilter extends OncePerRequestFilter {
                 .map(authority -> authority.getAuthority())
                 .collect(java.util.stream.Collectors.toSet());
             boolean customerOnly = authorities.equals(Set.of("ROLE_CUSTOMER"));
-            boolean firebaseStaff = Objects.equals(firebaseIssuer, token.getToken().getIssuer() == null
-                    ? null : token.getToken().getIssuer().toString());
-            if (firebaseStaff && Set.of("/api/v1/auth/logout", "/api/v1/auth/password")
-                    .contains(request.getServletPath())) {
+            boolean apiToken = token.getToken().getIssuer() != null
+                    && apiIssuer.equals(token.getToken().getIssuer().toString());
+            if (!apiToken) {
+                SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_FORBIDDEN);
                 return;
             }
-            boolean valid = firebaseStaff
-                    ? rlsContextService.validateFirebaseStaffToken(token.getToken())
-                    : "access".equals(token.getToken().getClaimAsString("use"))
-                            && (customerOnly ? validCustomerToken(token)
-                                    : rlsContextService.validateAccessToken(token.getToken()));
+            boolean valid = "access".equals(token.getToken().getClaimAsString("use"))
+                    && (customerOnly ? validCustomerToken(token)
+                            : rlsContextService.validateAccessToken(token.getToken()));
             if (!valid) {
                 SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
