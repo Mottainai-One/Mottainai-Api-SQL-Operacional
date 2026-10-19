@@ -42,6 +42,10 @@ loja/empresa. A role e a senha de login devem ser provisionadas pela equipe de
 dados; o instalador não deve ser executado usando as credenciais de runtime da
 API.
 
+A integração de autenticação de clientes também depende de `mottainai.customer.external_auth_uid`, anulável para cadastros SQL antigos e único entre UIDs Firebase vinculados. No schema protegido, a coluna armazena um token SHA-256 do UID, não o UID em claro. A API não cria essa coluna; confirme que o instalador operacional contém essa estrutura antes de conectar o ambiente.
+
+A resposta do cliente segue as colunas disponíveis no schema protegido: `id`, `birthYear`, `active`, `marketingConsent`, `createdAt` e `updatedAt`. Ela não devolve nome, CPF, e-mail, telefone ou endereço. Veja o [contrato de cliente e transição](docs/PROTECTED_CUSTOMER_CONTRACT.md).
+
 ## Autenticação operacional
 
 1. O app autentica o funcionário no Firebase.
@@ -94,6 +98,8 @@ explicitamente em vez de tentar decifrar com a chave ativa.
 
 ## Rotas e documentação
 
+As rotas `/api/v1/client/**` e `/api/v1/customer-catalog/**` usam Firebase ID token. O catálogo exige identidade Firebase válida; operações de perfil e fidelidade também associam o UID ao `external_auth_uid` protegido do cliente. O fluxo de cliente continua separado da autenticação operacional de funcionários.
+
 Os endpoints operacionais incluem `/api/v1/auth`, `/api/v1/employees`,
 `/api/v1/companies`, `/api/v1/stores`, `/api/v1/products`, `/api/v1/suppliers`,
 `/api/v1/inventory`, `/api/v1/purchase-orders`, `/api/v1/promotions`,
@@ -109,6 +115,18 @@ não substituem o fluxo de autenticação operacional.
 - Health check: `http://localhost:8080/actuator/health`
 
 ## Executar e testar
+
+### Imagem Docker para QA
+
+O `Dockerfile` cria uma imagem Java 21 da API. O banco é provisionado pelo repositório `Mottainai-Banco-Operacional`; a API conecta usando `DB_URL`, `DB_USER` e `DB_PASSWORD`. A imagem não contém senhas nem dados. O endpoint de verificação é `/actuator/health`.
+
+No QA, mantenha `spring.flyway.enabled=false`: o instalador operacional cria o esquema e o Hibernate apenas valida a compatibilidade. Configure `JWT_SECRET` individualmente para o ambiente. O Compose opcional liga a API ao PostgreSQL de QA.
+
+```bash
+docker build -t mottainai-api:qa .
+```
+
+### Execução local
 
 ```powershell
 ./mvnw.cmd spring-boot:run

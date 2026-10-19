@@ -1,0 +1,9 @@
+spring:
+  mail:
+    host: mailpit
+    port: 1025
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.starttls.required: false
+      mail.smtp.ssl.checkserveridentity: false
