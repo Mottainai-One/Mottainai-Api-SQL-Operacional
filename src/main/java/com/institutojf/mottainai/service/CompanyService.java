@@ -47,6 +47,8 @@ public class CompanyService {
 
     private final CompanyMapper companyMapper;
 
+    private final StaffUserLookup staffUserLookup;
+
     @Transactional
     public CompanyResponse create(CreateCompanyRequest request) {
         if (companyRepository.existsByCnpj(request.cnpj())) {
@@ -84,7 +86,7 @@ public class CompanyService {
 
     @Transactional
     public void delete(Integer id, String actorEmail) {
-        AppUser actor = appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(actorEmail)
+        AppUser actor = staffUserLookup.findActive(actorEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Company company = findActiveCompanyById(id);
         LocalDateTime deletedAt = LocalDateTime.now();

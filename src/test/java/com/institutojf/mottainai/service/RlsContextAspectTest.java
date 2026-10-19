@@ -1,20 +1,17 @@
 package com.institutojf.mottainai.service;
 
-import com.institutojf.mottainai.security.JwtProperties;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.List;
-
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,9 +23,7 @@ import static org.mockito.Mockito.when;
 class RlsContextAspectTest {
 
     private final RlsContextService rlsContextService = mock(RlsContextService.class);
-
-    private final RlsContextAspect aspect = new RlsContextAspect(rlsContextService,
-            new JwtProperties("unused", "https://mottainai.local", 60, 7));
+    private final RlsContextAspect aspect = new RlsContextAspect(rlsContextService);
 
     @AfterEach
     void clearSecurityContext() {
@@ -36,52 +31,39 @@ class RlsContextAspectTest {
     }
 
     @Test
-    @DisplayName("Should leave firebase authentication outside staff context")
-    void shouldLeaveFirebaseAuthenticationOutsideStaffContext() throws Throwable {
-        SecurityContextHolder.getContext().setAuthentication(token("customer-uid", "https://securetoken.google.com/customer-project"));
+    void bootstrapsStaffContextByVerifiedJwtSubject() throws Throwable {
+        SecurityContextHolder.getContext().setAuthentication(token("firebase-uid-1", "ROLE_ADMINISTRATOR"));
         ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+        when(rlsContextService.bootstrapByFirebaseUid("firebase-uid-1")).thenReturn(true);
         when(joinPoint.proceed()).thenReturn("ok");
-        assertEquals("ok", aspect.setContext(joinPoint));
-        verifyNoInteractions(rlsContextService);
-    }
 
-    @Test
-    @DisplayName("Should reject staff request without matching database context")
-    void shouldRejectStaffRequestWithoutMatchingDatabaseContext() {
-        SecurityContextHolder.getContext().setAuthentication(token("admin@example.com", "https://mottainai.local"));
-        ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
-        assertThrows(BadCredentialsException.class, () -> aspect.setContext(joinPoint));
-        verify(rlsContextService).bootstrapByEmail("admin@example.com");
-    }
-
-    @Test
-    @DisplayName("Should set staff RLS context before running a transactional service")
-    void shouldBootstrapStaffContextBeforeProceeding() throws Throwable {
-        SecurityContextHolder.getContext().setAuthentication(token("admin@example.com", "https://mottainai.local"));
-        ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
-        when(rlsContextService.bootstrapByEmail("admin@example.com")).thenReturn(true);
-        when(joinPoint.proceed()).thenReturn("ok");
         assertEquals("ok", aspect.setContext(joinPoint));
-        verify(rlsContextService).bootstrapByEmail("admin@example.com");
+        verify(rlsContextService).bootstrapByFirebaseUid("firebase-uid-1");
         verify(joinPoint).proceed();
     }
 
     @Test
-    void shouldSkipStaffBootstrapForCustomerOnlyToken() throws Throwable {
-        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", "customer@example.com", "iss", "https://mottainai.local", "use", "access"));
-        SecurityContextHolder.getContext()
-            .setAuthentication(new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+    void rejectsStaffRequestWhenFirebaseUidCannotBootstrap() {
+        SecurityContextHolder.getContext().setAuthentication(token("unlinked-uid", "ROLE_ADMINISTRATOR"));
+        ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
+
+        assertThrows(BadCredentialsException.class, () -> aspect.setContext(joinPoint));
+        verify(rlsContextService).bootstrapByFirebaseUid("unlinked-uid");
+    }
+
+    @Test
+    void skipsStaffBootstrapForCustomerOnlyToken() throws Throwable {
+        SecurityContextHolder.getContext().setAuthentication(token("customer-uid", "ROLE_CUSTOMER"));
         ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
         when(joinPoint.proceed()).thenReturn("ok");
+
         assertEquals("ok", aspect.setContext(joinPoint));
         verifyNoInteractions(rlsContextService);
     }
 
-    private JwtAuthenticationToken token(String subject, String issuer) {
+    private JwtAuthenticationToken token(String uid, String authority) {
         Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
-                Map.of("sub", subject, "iss", issuer));
-        return new JwtAuthenticationToken(jwt);
+                Map.of("sub", uid, "iss", "https://securetoken.google.com/project"));
+        return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority(authority)));
     }
-
 }

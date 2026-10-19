@@ -23,14 +23,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -71,6 +74,7 @@ class PurchaseOrderServiceTest {
         var request = new CreatePurchaseOrderRequest(8, LocalDate.of(2026, 10, 10), "Morning", List.of(item));
         var created = new PurchaseOrderRepository.PurchaseOrderData(5, 3, 8, 4, LocalDateTime.now(), request.expectedDeliveryDate(), PurchaseOrderStatus.PENDING, request.observation(),
                 new BigDecimal("85.00"), 1, List.of());
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))).when(authentication).getAuthorities();
         when(inventoryAccess.currentUser(authentication)).thenReturn(actor);
         when(outboxEventRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(8)).thenReturn(Optional.of(new Supplier()));

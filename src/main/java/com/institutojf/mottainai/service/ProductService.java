@@ -49,6 +49,8 @@ public class ProductService {
 
     private final AuditLogRepository auditLogRepository;
 
+    private final StaffUserLookup staffUserLookup;
+
     @Transactional
     public ProductResponse create(CreateProductRequest request) {
         if (productRepository.existsByBarcode(request.barcode())) {
@@ -108,7 +110,7 @@ public class ProductService {
     public void delete(Integer id, String actorEmail) {
         Product product = findActiveProductById(id);
         ensureCanDeactivate(id);
-        AppUser actor = appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(actorEmail)
+        AppUser actor = staffUserLookup.findActive(actorEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         product.setActive(false);
         product.setDeletedAt(LocalDateTime.now());

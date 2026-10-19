@@ -5,29 +5,32 @@ import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeeRole;
 import com.institutojf.mottainai.model.RetailStore;
-import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
+import com.institutojf.mottainai.service.StaffUserLookup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryAccessTest {
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private RetailStoreRepository retailStoreRepository;
 
     @Mock
-    private RetailStoreRepository retailStoreRepository;
+    private StaffUserLookup staffUserLookup;
 
     @Mock
     private Authentication authentication;
@@ -35,10 +38,10 @@ class InventoryAccessTest {
     @Test
     @DisplayName("Should derive manager store instead of using requested store")
     void shouldDeriveManagerStoreInsteadOfUsingRequestedStore() {
-        InventoryAccess access = new InventoryAccess(appUserRepository, retailStoreRepository);
+        InventoryAccess access = new InventoryAccess(retailStoreRepository, staffUserLookup);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("manager@example.com");
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("manager@example.com"))
+        when(staffUserLookup.findActive("manager@example.com"))
             .thenReturn(Optional.of(userInStoreWithRole(2, "MANAGER")));
         Integer storeId = access.resolveStoreId(authentication, 99);
         assertEquals(2, storeId);
@@ -47,10 +50,10 @@ class InventoryAccessTest {
     @Test
     @DisplayName("Should reject manager access to another store")
     void shouldRejectManagerAccessToAnotherStore() {
-        InventoryAccess access = new InventoryAccess(appUserRepository, retailStoreRepository);
+        InventoryAccess access = new InventoryAccess(retailStoreRepository, staffUserLookup);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("manager@example.com");
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("manager@example.com"))
+        when(staffUserLookup.findActive("manager@example.com"))
             .thenReturn(Optional.of(userInStoreWithRole(2, "MANAGER")));
         assertThrows(BusinessException.class, () -> access.checkStoreAccess(authentication, 99));
     }
@@ -58,10 +61,11 @@ class InventoryAccessTest {
     @Test
     @DisplayName("Should require store parameter for administrator list")
     void shouldRequireStoreParameterForAdministratorList() {
-        InventoryAccess access = new InventoryAccess(appUserRepository, retailStoreRepository);
+        InventoryAccess access = new InventoryAccess(retailStoreRepository, staffUserLookup);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("admin@example.com");
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("admin@example.com"))
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"))).when(authentication).getAuthorities();
+        when(staffUserLookup.findActive("admin@example.com"))
             .thenReturn(Optional.of(userInStoreWithRole(2, "ADMINISTRATOR")));
         assertThrows(BusinessException.class, () -> access.resolveStoreId(authentication, null));
     }

@@ -53,6 +53,9 @@ class RetailStoreServiceTest {
     private AppUserRepository appUserRepository;
 
     @Mock
+    private StaffUserLookup staffUserLookup;
+
+    @Mock
     private AuditLogRepository auditLogRepository;
 
     @Mock
@@ -131,7 +134,7 @@ class RetailStoreServiceTest {
         AppUser actor = new AppUser();
         actor.setId(9);
         when(retailStoreRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(store));
-        when(appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull("admin@example.com")).thenReturn(Optional.of(actor));
+        when(staffUserLookup.findActive("admin@example.com")).thenReturn(Optional.of(actor));
         retailStoreService.delete(1, "admin@example.com");
         assertFalse(store.getActive());
         assertNotNull(store.getDeletedAt());

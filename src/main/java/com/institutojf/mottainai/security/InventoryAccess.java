@@ -3,8 +3,8 @@ package com.institutojf.mottainai.security;
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.model.AppUser;
-import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
+import com.institutojf.mottainai.service.StaffUserLookup;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -13,15 +13,15 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class InventoryAccess {
 
-    private final AppUserRepository appUserRepository;
-
     private final RetailStoreRepository retailStoreRepository;
+
+    private final StaffUserLookup staffUserLookup;
 
     public AppUser currentUser(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null) {
             throw new BusinessException("Authenticated user required");
         }
-        return appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(authentication.getName())
+        return staffUserLookup.findActive(authentication.getName())
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 

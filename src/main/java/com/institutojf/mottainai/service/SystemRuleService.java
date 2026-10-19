@@ -34,6 +34,8 @@ public class SystemRuleService {
 
     private final JsonMapper jsonMapper;
 
+    private final StaffUserLookup staffUserLookup;
+
     @Transactional(readOnly = true)
     public List<SystemRuleResponse> findAll() {
         return systemRuleRepository.findAllByOrderByCategoryAscKeyAsc().stream().map(this::toResponse).toList();
@@ -53,7 +55,7 @@ public class SystemRuleService {
         }
         SystemRule rule = matchingRules.getFirst();
         validateValue(rule.getValueType(), request.ruleValue());
-        AppUser actor = appUserRepository.findByEmailIgnoreCaseAndActiveTrueAndDeletedAtIsNull(actorEmail)
+        AppUser actor = staffUserLookup.findActive(actorEmail)
             .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
         String oldValue = rule.getValue();
         rule.setValue(request.ruleValue());

@@ -31,17 +31,8 @@ public class Employee {
     @JoinColumn(name = "store_id", nullable = false)
     private RetailStore store;
 
-    @Column(nullable = false, length = 150)
-    private String name;
-
-    @Column(nullable = false, unique = true, length = 80)
-    private String cpf;
-
-    @Column(length = 150)
-    private String email;
-
-    @Column(length = 80)
-    private String phone;
+    @jakarta.persistence.OneToOne(mappedBy = "employee", fetch = FetchType.LAZY)
+    private EmployeePrivateData privateData;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false)
