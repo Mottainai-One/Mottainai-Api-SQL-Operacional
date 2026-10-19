@@ -135,20 +135,30 @@ public class EmployeePrivateDataService {
     }
 
     private String decryptCpf(EmployeePrivateData data) {
+        requireEncrypted(data);
         return cryptography.decrypt("staff.cpf", data.getKeyVersion(), data.getCpfCiphertext(), data.getCpfNonce());
     }
 
     private String decryptEmail(EmployeePrivateData data) {
+        requireEncrypted(data);
         return cryptography.decrypt("employee.email", data.getKeyVersion(), data.getEmailCiphertext(), data.getEmailNonce());
     }
 
     private EmployeePrivateData data(Employee employee) {
-        if (employee == null || employee.getPrivateData() == null
-                || !"ENCRYPTED".equals(employee.getPrivateData().getProtectionState())
-                || employee.getPrivateData().getKeyVersion() == null) {
+        if (employee == null) {
             throw new IllegalStateException("Employee personal data is not encrypted in employee_private_data");
         }
-        return employee.getPrivateData();
+        EmployeePrivateData data = employee.getPrivateData();
+        requireEncrypted(data);
+        return data;
+    }
+
+    private void requireEncrypted(EmployeePrivateData data) {
+        if (data == null || !"ENCRYPTED".equals(data.getProtectionState())
+                || data.getKeyVersion() == null || data.getKeyVersion() <= 0
+                || !"AES-256-GCM".equals(data.getAlgorithm())) {
+            throw new IllegalStateException("Employee personal data is not encrypted with a valid AES-256-GCM key version");
+        }
     }
 
     private static byte[] ciphertext(EncryptedValue encrypted) {

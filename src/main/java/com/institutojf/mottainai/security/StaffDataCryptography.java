@@ -70,13 +70,16 @@ public final class StaffDataCryptography {
         }
     }
 
-    public String decrypt(String field, short storedKeyVersion, byte[] ciphertext, byte[] nonce) {
+    public String decrypt(String field, Short storedKeyVersion, byte[] ciphertext, byte[] nonce) {
         if (ciphertext == null && nonce == null) {
             return null;
         }
         if (ciphertext == null || nonce == null || nonce.length != NONCE_LENGTH_BYTES
                 || ciphertext.length < MIN_CIPHERTEXT_LENGTH_BYTES) {
             throw new IllegalArgumentException("Staff data has an invalid AES-256-GCM envelope");
+        }
+        if (storedKeyVersion == null || storedKeyVersion <= 0) {
+            throw new IllegalStateException("Stored employee data key_version must be a positive SMALLINT");
         }
         SecretKey decryptionKey = decryptionKeys.get(storedKeyVersion);
         if (decryptionKey == null) {
