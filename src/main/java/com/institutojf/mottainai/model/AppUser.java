@@ -32,6 +32,12 @@ public class AppUser {
     @Column(name = "firebase_uid", length = 255)
     private String firebaseUid;
 
+    @Column(nullable = false, length = 150)
+    private String email;
+
+    @Column(nullable = false, length = 80)
+    private String cpf;
+
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 

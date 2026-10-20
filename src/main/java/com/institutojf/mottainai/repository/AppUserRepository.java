@@ -68,4 +68,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
             """)
     Optional<AppUser> findByEmployeeId(@Param("employeeId") Integer employeeId);
 
+    @EntityGraph(attributePaths = { "employee", "employee.privateData", "employee.role", "employee.store" })
+    Optional<AppUser> findByEmployee_Id(Integer employeeId);
+
 }

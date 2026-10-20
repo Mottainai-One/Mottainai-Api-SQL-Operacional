@@ -225,8 +225,8 @@ public class AuthenticationService {
 
     // Reconstrói as permissões atuais do funcionário para emitir novos tokens
     private Authentication authenticationFor(AppUser user) {
-        String role = user.getEmployee().getRole().getName().toUpperCase(Locale.ROOT);
-        List<SimpleGrantedAuthority> authorities = StaffRoleAuthorities.forDatabaseRole(role).stream()
+        List<SimpleGrantedAuthority> authorities = StaffRoleAuthorities
+                .forPermissionLevel(user.getEmployee().getRole().getPermissionLevel()).stream()
                 .map(authority -> new SimpleGrantedAuthority("ROLE_" + authority))
                 .toList();
         if (authorities.isEmpty()) {

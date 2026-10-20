@@ -17,6 +17,10 @@ public final class ProtectedDataToken {
         return token("CUS", value, ProtectedDataToken::normalized);
     }
 
+    public static String employeeName(String value) {
+        return token("EMP", value, ProtectedDataToken::normalized);
+    }
+
     public static String cpf(String value) {
         return token("CPF", value, text -> text.replaceAll("\\D", ""));
     }

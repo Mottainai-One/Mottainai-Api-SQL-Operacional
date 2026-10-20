@@ -24,6 +24,7 @@ import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.TokenHashService;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.extern.slf4j.Slf4j;
@@ -81,7 +82,13 @@ public class EmployeeService {
     @Transactional
     public EmployeeResponse create(CreateEmployeeRequest request, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        String email = StaffContactData.email(request.email());
+        String email = request.email() == null || request.email().isBlank()
+                ? null : StaffContactData.email(request.email());
+        // Keep the existing API default for old clients; callers may explicitly opt out.
+        boolean createLogin = !Boolean.FALSE.equals(request.createLogin());
+        if (createLogin && email == null) {
+            throw new BusinessException("An email is required when creating login access");
+        }
         String cpf = StaffContactData.cpf(request.cpf());
         RetailStore store = storeRepository.findByIdAndActiveTrueAndDeletedAtIsNull(request.storeId())
             .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
@@ -91,18 +98,29 @@ public class EmployeeService {
         if (privateDataService.cpfExists(cpf, null)) {
             throw new ConflictException("CPF already exists");
         }
-        if (privateDataService.emailExists(email, null)) {
+        if (email != null && privateDataService.emailExists(email, null)) {
             throw new ConflictException("Email already exists");
         }
         Employee employee = new Employee();
         employee.setStore(store);
         employee.setRole(role(request.roleId()));
         employee.setHireDate(request.hireDate());
-        employee.setActive(false);
+        employee.setActive(!createLogin);
+        employee.setName(ProtectedDataToken.employeeName(request.name()));
+        employee.setCpf(ProtectedDataToken.cpf(cpf));
+        employee.setEmail(ProtectedDataToken.email(email));
+        employee.setPhone(ProtectedDataToken.phone(request.phone()));
         employee = employeeRepository.saveAndFlush(employee);
         privateDataService.save(employee, request.name(), cpf, email, request.phone());
+        if (!createLogin) {
+            auditLogRepository.record("employee", "INSERT", employee.getId().toString(), requestingUser.getId(), null,
+                    Map.of("store_id", store.getId(), "role_id", employee.getRole().getId(), "login_created", false));
+            return response(employee, null);
+        }
         AppUser user = new AppUser();
         user.setEmployee(employee);
+        user.setEmail(ProtectedDataToken.email(email));
+        user.setCpf(employee.getCpf());
         user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
         user.setPasswordSet(false);
         user.setActive(false);
@@ -121,7 +139,7 @@ public class EmployeeService {
     @Transactional(readOnly = true)
     public List<EmployeeResponse> listStore(String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        return appUserRepository.findEmployeesByStore(requestingUser.getEmployee().getStore().getId())
+        return employeeRepository.findDirectoryByStoreId(requestingUser.getEmployee().getStore().getId())
             .stream()
             .map(this::response)
             .toList();
@@ -131,25 +149,29 @@ public class EmployeeService {
     public List<EmployeeResponse> listCompany(String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
         Integer companyId = requestingUser.getEmployee().getStore().getCompany().getId();
-        return appUserRepository.findEmployeesByCompany(companyId).stream().map(this::response).toList();
+        return employeeRepository.findDirectoryByCompanyId(companyId).stream().map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
     public EmployeeResponse find(Integer employeeId, String requestingUserEmail) {
-        return response(target(employeeId, requestingUser(requestingUserEmail), false));
+        return response(targetEmployee(employeeId, requestingUser(requestingUserEmail), false));
     }
 
     @Transactional
     public EmployeeResponse update(Integer employeeId, UpdateEmployeeRequest request, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        AppUser user = target(employeeId, requestingUser, true);
-        Employee employee = user.getEmployee();
+        Employee employee = targetEmployee(employeeId, requestingUser, true);
+        AppUser user = userFor(employee);
         String cpf = StaffContactData.cpf(privateDataService.cpf(employee));
-        String email = StaffContactData.email(request.email());
+        String email = request.email() == null || request.email().isBlank()
+                ? null : StaffContactData.email(request.email());
+        if (user != null && email == null) {
+            throw new BusinessException("An email is required while login access exists");
+        }
         boolean emailChanged = !java.util.Objects.equals(privateDataService.email(employee), email);
         boolean roleChanged = request.roleId() != null && !request.roleId().equals(employee.getRole().getId());
 
-        if (emailChanged && privateDataService.emailExists(email, employee.getId())) {
+        if (emailChanged && email != null && privateDataService.emailExists(email, employee.getId())) {
             throw new ConflictException("Email already exists");
         }
         Map<String, Object> oldData = employeeAuditData(employee);
@@ -158,13 +180,17 @@ public class EmployeeService {
             employee.setRole(role(request.roleId()));
         }
         employeeRepository.saveAndFlush(employee);
-        appUserRepository.save(user);
+        if (user != null) {
+            user.setEmail(employee.getEmail());
+            user.setCpf(employee.getCpf());
+            appUserRepository.save(user);
+        }
         auditLogRepository.record("employee", "UPDATE", employeeId.toString(), requestingUser.getId(), oldData,
                 employeeAuditData(employee));
-        if (emailChanged || roleChanged) {
+        if (user != null && (emailChanged || roleChanged)) {
             sessionRepository.revokeAllForUser(user.getId());
         }
-        if (emailChanged) {
+        if (user != null && emailChanged) {
             passwordResetTokenRepository.invalidateUnusedForUser(user.getId(), OffsetDateTime.now(ZoneOffset.UTC));
             invitationRepository.invalidateUnusedForUser(user.getId());
             if (!Boolean.TRUE.equals(user.getPasswordSet())) {
@@ -176,26 +202,29 @@ public class EmployeeService {
             auditLogRepository.record("app_user", "UPDATE", user.getId().toString(), requestingUser.getId(),
                     Map.of("email_changed", true), Map.of("email_changed", true));
         }
-        return response(user);
+        return response(employee, user);
     }
 
     @Transactional
     public void delete(Integer employeeId, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        AppUser user = target(employeeId, requestingUser, true);
-        if (user.getId().equals(requestingUser.getId())) {
+        Employee employee = targetEmployee(employeeId, requestingUser, true);
+        AppUser user = userFor(employee);
+        if (user != null && user.getId().equals(requestingUser.getId())) {
             throw new BusinessException("You cannot delete your own access");
         }
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        boolean oldActive = Boolean.TRUE.equals(user.getActive());
-        user.getEmployee().setDeletedAt(now);
-        user.getEmployee().setActive(false);
-        user.setDeletedAt(now);
-        user.setActive(false);
-        employeeRepository.save(user.getEmployee());
-        appUserRepository.save(user);
-        sessionRepository.revokeAllForUser(user.getId());
-        invitationRepository.invalidateUnusedForUser(user.getId());
+        boolean oldActive = Boolean.TRUE.equals(employee.getActive());
+        employee.setDeletedAt(now);
+        employee.setActive(false);
+        employeeRepository.save(employee);
+        if (user != null) {
+            user.setDeletedAt(now);
+            user.setActive(false);
+            appUserRepository.save(user);
+            sessionRepository.revokeAllForUser(user.getId());
+            invitationRepository.invalidateUnusedForUser(user.getId());
+        }
         auditLogRepository.record("employee", "DELETE", employeeId.toString(), requestingUser.getId(),
                 Map.of("active", oldActive), Map.of("active", false, "deleted_at", now.toString()));
     }
@@ -203,46 +232,65 @@ public class EmployeeService {
     @Transactional
     public EmployeeResponse changeStatus(Integer employeeId, EmployeeStatusRequest request, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        AppUser user = target(employeeId, requestingUser, true);
-        if (user.getId().equals(requestingUser.getId()) && !request.active()) {
+        Employee employee = targetEmployee(employeeId, requestingUser, true);
+        AppUser user = userFor(employee);
+        if (user != null && user.getId().equals(requestingUser.getId()) && !request.active()) {
             throw new BusinessException("You cannot disable your own access");
         }
-        if (request.active() && !Boolean.TRUE.equals(user.getPasswordSet())) {
+        if (request.active() && user != null && !Boolean.TRUE.equals(user.getPasswordSet())) {
             throw new BusinessException("The employee must define a password before activation");
         }
-        if (request.active() && (user.getFirebaseUid() == null || user.getFirebaseUid().isBlank())) {
+        if (request.active() && user != null && (user.getFirebaseUid() == null || user.getFirebaseUid().isBlank())) {
             throw new BusinessException("The employee must link a Firebase account before activation");
         }
-        if (request.active() && (!Boolean.TRUE.equals(user.getEmployee().getRole().getActive())
-                || user.getEmployee().getRole().getDeletedAt() != null
-                || !Boolean.TRUE.equals(user.getEmployee().getStore().getActive())
-                || user.getEmployee().getStore().getDeletedAt() != null)) {
+        if (request.active() && (!Boolean.TRUE.equals(employee.getRole().getActive())
+                || employee.getRole().getDeletedAt() != null
+                || !Boolean.TRUE.equals(employee.getStore().getActive())
+                || employee.getStore().getDeletedAt() != null)) {
             throw new BusinessException("The employee's role and store must be active before activation");
         }
-        boolean oldActive = Boolean.TRUE.equals(user.getActive());
-        user.setActive(request.active());
-        user.getEmployee().setActive(request.active());
-        employeeRepository.save(user.getEmployee());
-        appUserRepository.save(user);
-        if (!request.active()) {
+        boolean oldActive = Boolean.TRUE.equals(employee.getActive());
+        employee.setActive(request.active());
+        employeeRepository.save(employee);
+        if (user != null) {
+            user.setActive(request.active());
+            appUserRepository.save(user);
+        }
+        if (!request.active() && user != null) {
             passwordResetTokenRepository.invalidateUnusedForUser(user.getId(), OffsetDateTime.now(ZoneOffset.UTC));
             sessionRepository.revokeAllForUser(user.getId());
             invitationRepository.invalidateUnusedForUser(user.getId());
         }
         auditLogRepository.record("employee", "UPDATE", employeeId.toString(), requestingUser.getId(),
                 Map.of("active", oldActive), Map.of("active", request.active()));
-        return response(user);
+        return response(employee, user);
     }
 
     @Transactional
     public EmployeeResponse resendInvitation(Integer employeeId, String requestingUserEmail) {
         AppUser requestingUser = requestingUser(requestingUserEmail);
-        AppUser user = target(employeeId, requestingUser, true);
+        Employee employee = targetEmployee(employeeId, requestingUser, true);
+        AppUser user = userFor(employee);
+        if (user == null) {
+            String email = privateDataService.email(employee);
+            if (email == null || email.isBlank()) {
+                throw new BusinessException("Add an email before granting login access");
+            }
+            user = new AppUser();
+            user.setEmployee(employee);
+            user.setEmail(employee.getEmail());
+            user.setCpf(employee.getCpf());
+            user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
+            user.setPasswordSet(false);
+            user.setActive(false);
+            user = appUserRepository.saveAndFlush(user);
+            auditLogRepository.record("app_user", "INSERT", user.getId().toString(), requestingUser.getId(), null,
+                    Map.of("employee_id", employeeId, "active", false, "invitation_issued", true));
+        }
         if (Boolean.TRUE.equals(user.getPasswordSet()) || Boolean.TRUE.equals(user.getActive())
-                || Boolean.TRUE.equals(user.getEmployee().getActive())) {
+                || user.getDeletedAt() != null) {
             throw new BusinessException("Only an inactive employee without a password can be invited again");
         }
-        Employee employee = user.getEmployee();
         if (!Boolean.TRUE.equals(employee.getRole().getActive()) || employee.getRole().getDeletedAt() != null
                 || !Boolean.TRUE.equals(employee.getStore().getActive()) || employee.getStore().getDeletedAt() != null
                 || !Boolean.TRUE.equals(employee.getStore().getCompany().getActive())
@@ -261,7 +309,7 @@ public class EmployeeService {
         auditLogRepository.record("app_user", "UPDATE", user.getId().toString(), requestingUser.getId(), null,
                 Map.of("invitation_issued", true));
         scheduleInvitationEmail(privateDataService.email(employee), rawToken, employeeId);
-        return response(user);
+        return response(employee, user);
     }
 
     @Transactional(readOnly = true)
@@ -288,28 +336,25 @@ public class EmployeeService {
         if (!hasRole("ADMINISTRATOR") && !hasRole("MANAGER")) {
             throw new ResourceNotFoundException("Employee not found");
         }
-        target(employeeId, requester, false);
+        targetEmployee(employeeId, requester, false);
     }
 
-    private AppUser target(Integer employeeId, AppUser requestingUser, boolean write) {
-        AppUser found = appUserRepository.findByEmployeeId(employeeId)
-            .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+    private Employee targetEmployee(Integer employeeId, AppUser requestingUser, boolean write) {
+        Employee found = employeeRepository.findDirectoryById(employeeId).orElseGet(() ->
+                appUserRepository.findByEmployeeId(employeeId).map(AppUser::getEmployee)
+                        .orElseThrow(() -> new ResourceNotFoundException("Employee not found")));
         if (write) {
             entityManager.refresh(found, LockModeType.PESSIMISTIC_WRITE);
-            entityManager.refresh(found.getEmployee(), LockModeType.PESSIMISTIC_WRITE);
-            if (found.getDeletedAt() != null || found.getEmployee().getDeletedAt() != null) {
+            if (found.getDeletedAt() != null) {
                 throw new ResourceNotFoundException("Employee not found");
             }
         }
         Integer requestingUserCompany = requestingUser.getEmployee().getStore().getCompany().getId();
-        Integer targetCompany = found.getEmployee().getStore().getCompany().getId();
+        Integer targetCompany = found.getStore().getCompany().getId();
         boolean administrator = hasRole("ADMINISTRATOR");
         boolean manager = hasRole("MANAGER");
-        boolean sameStore = requestingUser.getEmployee()
-            .getStore()
-            .getId()
-            .equals(found.getEmployee().getStore().getId());
-        boolean self = requestingUser.getId().equals(found.getId());
+        boolean sameStore = requestingUser.getEmployee().getStore().getId().equals(found.getStore().getId());
+        boolean self = java.util.Objects.equals(requestingUser.getEmployee().getId(), found.getId());
         if (!requestingUserCompany.equals(targetCompany) || (write && !administrator)
                 || (!administrator && !(manager && sameStore) && !self)) {
             throw new ResourceNotFoundException("Employee not found");
@@ -337,11 +382,24 @@ public class EmployeeService {
 
     private EmployeeResponse response(AppUser user) {
         Employee employee = user.getEmployee();
-        return new EmployeeResponse(employee.getId(), user.getId(),
+        return response(employee, user);
+    }
+
+    private EmployeeResponse response(Employee employee) {
+        return response(employee, userFor(employee));
+    }
+
+    private AppUser userFor(Employee employee) {
+        return appUserRepository.findByEmployee_Id(employee.getId()).orElseGet(() ->
+                appUserRepository.findByEmployeeId(employee.getId()).orElse(null));
+    }
+
+    private EmployeeResponse response(Employee employee, AppUser user) {
+        return new EmployeeResponse(employee.getId(), user == null ? null : user.getId(),
                 privateDataService.name(employee), privateDataService.cpfMasked(employee),
                 privateDataService.email(employee), privateDataService.phone(employee),
                 employee.getRole().getName(), employee.getStore().getId(),
-                user.getActive(), user.getLastLogin());
+                user == null ? employee.getActive() : user.getActive(), user == null ? null : user.getLastLogin());
     }
 
     private Map<String, Object> employeeAuditData(Employee employee) {

@@ -66,7 +66,8 @@ public class RlsContextService {
             return false;
         }
         List<String> roles = jwt.getClaimAsStringList("roles");
-        List<String> expectedRoles = StaffRoleAuthorities.forDatabaseRole(user.getEmployee().getRole().getName());
+        List<String> expectedRoles = StaffRoleAuthorities
+                .forPermissionLevel(user.getEmployee().getRole().getPermissionLevel());
         return roles != null && roles.size() == expectedRoles.size() && !expectedRoles.isEmpty()
                 && new HashSet<>(roles).equals(new HashSet<>(expectedRoles))
                 && staffSessionRepository.isActive(sessionId, user.getId());

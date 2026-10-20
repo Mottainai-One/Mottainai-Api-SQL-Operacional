@@ -3,6 +3,7 @@ package com.institutojf.mottainai.service;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeePrivateData;
 import com.institutojf.mottainai.repository.EmployeePrivateDataRepository;
+import com.institutojf.mottainai.repository.EmployeeRepository;
 import com.institutojf.mottainai.security.StaffDataCryptography;
 import org.junit.jupiter.api.Test;
 
@@ -21,9 +22,10 @@ import static org.mockito.Mockito.when;
 class EmployeePrivateDataServiceTest {
 
     private final EmployeePrivateDataRepository repository = mock(EmployeePrivateDataRepository.class);
+    private final EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     private final StaffDataCryptography cryptography = new StaffDataCryptography(
             Base64.getEncoder().encodeToString(new byte[32]), 3);
-    private final EmployeePrivateDataService service = new EmployeePrivateDataService(repository, cryptography);
+    private final EmployeePrivateDataService service = new EmployeePrivateDataService(repository, cryptography, employeeRepository);
 
     @Test
     void storesAllEmployeePiiAsBinaryAesGcmAndPersistsMasksAndKeyMetadata() {

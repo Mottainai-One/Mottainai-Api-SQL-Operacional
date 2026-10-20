@@ -3,11 +3,12 @@ package com.institutojf.mottainai.service;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeePrivateData;
 import com.institutojf.mottainai.repository.EmployeePrivateDataRepository;
+import com.institutojf.mottainai.repository.EmployeeRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.StaffDataCryptography;
 import com.institutojf.mottainai.security.StaffDataCryptography.EncryptedValue;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +20,13 @@ public class EmployeePrivateDataService {
 
     private final StaffDataCryptography cryptography;
 
-    public EmployeePrivateDataService(EmployeePrivateDataRepository repository, StaffDataCryptography cryptography) {
+    private final EmployeeRepository employeeRepository;
+
+    public EmployeePrivateDataService(EmployeePrivateDataRepository repository, StaffDataCryptography cryptography,
+            EmployeeRepository employeeRepository) {
         this.repository = repository;
         this.cryptography = cryptography;
+        this.employeeRepository = employeeRepository;
     }
 
     @Transactional
@@ -51,6 +56,10 @@ public class EmployeePrivateDataService {
         data.setKeyVersion(cryptography.keyVersion());
         data.setEncryptedAt(now);
         employee.setCpfLookupHmac(cryptography.cpfLookupHmac(normalizedCpf));
+        employee.setName(ProtectedDataToken.employeeName(normalizedName));
+        employee.setCpf(ProtectedDataToken.cpf(normalizedCpf));
+        employee.setEmail(ProtectedDataToken.email(email));
+        employee.setPhone(ProtectedDataToken.phone(phone));
         setName(data, normalizedName);
         setCpf(data, normalizedCpf);
         setEmail(data, email);
@@ -65,9 +74,8 @@ public class EmployeePrivateDataService {
             return false;
         }
         byte[] lookup = cryptography.cpfLookupHmac(normalized);
-        return excludedEmployeeId == null
-                ? repository.existsByEmployee_CpfLookupHmac(lookup)
-                : repository.existsByEmployee_CpfLookupHmacAndEmployee_IdNot(lookup, excludedEmployeeId);
+        return excludedEmployeeId == null ? employeeRepository.existsByCpfLookupHmac(lookup)
+                : employeeRepository.existsByCpfLookupHmacAndIdNot(lookup, excludedEmployeeId);
     }
 
     @Transactional(readOnly = true)
@@ -76,10 +84,7 @@ public class EmployeePrivateDataService {
         if (normalized == null) {
             return false;
         }
-        return repository.findAll().stream()
-                .filter(data -> !Objects.equals(data.getEmployeeId(), excludedEmployeeId))
-                .map(this::decryptEmail)
-                .anyMatch(value -> value != null && value.equalsIgnoreCase(normalized));
+        return employeeRepository.existsByProtectedEmail(ProtectedDataToken.email(normalized), excludedEmployeeId);
     }
 
     public String name(Employee employee) {
