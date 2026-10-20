@@ -34,19 +34,6 @@ public class Employee {
     @jakarta.persistence.OneToOne(mappedBy = "employee", fetch = FetchType.LAZY)
     private EmployeePrivateData privateData;
 
-    // The operational installer keeps irreversible lookup tokens in the base row.
-    @Column(nullable = false, length = 150)
-    private String name;
-
-    @Column(nullable = false, length = 80)
-    private String cpf;
-
-    @Column(length = 150)
-    private String email;
-
-    @Column(length = 80)
-    private String phone;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false)
     private EmployeeRole role;
@@ -62,4 +49,7 @@ public class Employee {
 
     @Column(name = "cpf_lookup_hmac", columnDefinition = "bytea")
     private byte[] cpfLookupHmac;
+
+    @Column(name = "email_lookup_hmac", columnDefinition = "bytea")
+    private byte[] emailLookupHmac;
 }

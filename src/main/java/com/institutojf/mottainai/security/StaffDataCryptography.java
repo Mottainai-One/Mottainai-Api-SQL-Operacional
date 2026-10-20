@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -123,6 +124,21 @@ public final class StaffDataCryptography {
         }
         catch (GeneralSecurityException exception) {
             throw new IllegalStateException("Could not create staff CPF lookup fingerprint", exception);
+        }
+    }
+
+    public byte[] emailLookupHmac(String normalizedEmail) {
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            throw new IllegalArgumentException("A normalized email is required for lookup");
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(cpfLookupKey.getEncoded(), "HmacSHA256"));
+            return mac.doFinal(("EMAIL:" + normalizedEmail.strip().toLowerCase(Locale.ROOT))
+                    .getBytes(StandardCharsets.UTF_8));
+        }
+        catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Could not create staff email lookup fingerprint", exception);
         }
     }
 

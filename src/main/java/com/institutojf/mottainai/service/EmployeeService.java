@@ -24,7 +24,6 @@ import com.institutojf.mottainai.repository.PasswordResetTokenRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
 import com.institutojf.mottainai.repository.StaffSessionRepository;
 import com.institutojf.mottainai.security.TokenHashService;
-import com.institutojf.mottainai.security.ProtectedDataToken;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.extern.slf4j.Slf4j;
@@ -106,10 +105,6 @@ public class EmployeeService {
         employee.setRole(role(request.roleId()));
         employee.setHireDate(request.hireDate());
         employee.setActive(!createLogin);
-        employee.setName(ProtectedDataToken.employeeName(request.name()));
-        employee.setCpf(ProtectedDataToken.cpf(cpf));
-        employee.setEmail(ProtectedDataToken.email(email));
-        employee.setPhone(ProtectedDataToken.phone(request.phone()));
         employee = employeeRepository.saveAndFlush(employee);
         privateDataService.save(employee, request.name(), cpf, email, request.phone());
         if (!createLogin) {
@@ -119,8 +114,6 @@ public class EmployeeService {
         }
         AppUser user = new AppUser();
         user.setEmployee(employee);
-        user.setEmail(ProtectedDataToken.email(email));
-        user.setCpf(employee.getCpf());
         user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
         user.setPasswordSet(false);
         user.setActive(false);
@@ -181,8 +174,6 @@ public class EmployeeService {
         }
         employeeRepository.saveAndFlush(employee);
         if (user != null) {
-            user.setEmail(employee.getEmail());
-            user.setCpf(employee.getCpf());
             appUserRepository.save(user);
         }
         auditLogRepository.record("employee", "UPDATE", employeeId.toString(), requestingUser.getId(), oldData,
@@ -278,8 +269,6 @@ public class EmployeeService {
             }
             user = new AppUser();
             user.setEmployee(employee);
-            user.setEmail(employee.getEmail());
-            user.setCpf(employee.getCpf());
             user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
             user.setPasswordSet(false);
             user.setActive(false);

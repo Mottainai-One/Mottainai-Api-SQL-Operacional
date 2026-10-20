@@ -4,7 +4,6 @@ import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeePrivateData;
 import com.institutojf.mottainai.repository.EmployeePrivateDataRepository;
 import com.institutojf.mottainai.repository.EmployeeRepository;
-import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.security.StaffDataCryptography;
 import com.institutojf.mottainai.security.StaffDataCryptography.EncryptedValue;
 import java.time.OffsetDateTime;
@@ -56,10 +55,9 @@ public class EmployeePrivateDataService {
         data.setKeyVersion(cryptography.keyVersion());
         data.setEncryptedAt(now);
         employee.setCpfLookupHmac(cryptography.cpfLookupHmac(normalizedCpf));
-        employee.setName(ProtectedDataToken.employeeName(normalizedName));
-        employee.setCpf(ProtectedDataToken.cpf(normalizedCpf));
-        employee.setEmail(ProtectedDataToken.email(email));
-        employee.setPhone(ProtectedDataToken.phone(phone));
+        String normalizedEmail = StaffContactData.email(email);
+        employee.setEmailLookupHmac(normalizedEmail == null
+                ? null : cryptography.emailLookupHmac(normalizedEmail));
         setName(data, normalizedName);
         setCpf(data, normalizedCpf);
         setEmail(data, email);
@@ -84,7 +82,9 @@ public class EmployeePrivateDataService {
         if (normalized == null) {
             return false;
         }
-        return employeeRepository.existsByProtectedEmail(ProtectedDataToken.email(normalized), excludedEmployeeId);
+        byte[] lookup = cryptography.emailLookupHmac(normalized);
+        return excludedEmployeeId == null ? employeeRepository.existsByEmailLookupHmac(lookup)
+                : employeeRepository.existsByEmailLookupHmacAndIdNot(lookup, excludedEmployeeId);
     }
 
     public String name(Employee employee) {

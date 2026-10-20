@@ -18,6 +18,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
     boolean existsByCpfLookupHmacAndIdNot(byte[] cpfLookupHmac, Integer employeeId);
 
+    boolean existsByEmailLookupHmac(byte[] emailLookupHmac);
+
+    boolean existsByEmailLookupHmacAndIdNot(byte[] emailLookupHmac, Integer employeeId);
+
     @Query("SELECT e FROM Employee e JOIN FETCH e.role JOIN FETCH e.store s JOIN FETCH s.company "
             + "LEFT JOIN FETCH e.privateData WHERE e.id = :id AND e.deletedAt IS NULL")
     Optional<Employee> findDirectoryById(@Param("id") Integer id);
@@ -31,10 +35,5 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
             + "LEFT JOIN FETCH e.privateData WHERE s.company.id = :companyId AND e.deletedAt IS NULL "
             + "ORDER BY e.id")
     List<Employee> findDirectoryByCompanyId(@Param("companyId") Integer companyId);
-
-    @Query("SELECT COUNT(e) > 0 FROM Employee e WHERE lower(e.email) = lower(:emailToken) "
-            + "AND e.deletedAt IS NULL AND (:excludedId IS NULL OR e.id <> :excludedId)")
-    boolean existsByProtectedEmail(@Param("emailToken") String emailToken,
-            @Param("excludedId") Integer excludedId);
 
 }
