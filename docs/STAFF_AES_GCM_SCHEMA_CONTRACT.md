@@ -1,8 +1,10 @@
 # Staff PII contract — operational database PR #34
 
-This API targets the final schema from `Mottainai-Banco-Operacional` PR #34.
-The schema owner is the data team; this document records the contract expected
-by the API and does not replace or modify the database installer.
+This document records the API contract for encrypted staff data. The supplied
+`mottainai_operational_complete_2026-10-11.txt` installer does not create
+`employee_private_data`, so the API cannot run against that installer unchanged.
+The table is a necessary future database change; this document does not modify
+the installer.
 
 ## Employee personal data
 
@@ -71,9 +73,11 @@ Generate a local development key with PowerShell:
 
 ## Schema rollout dependency
 
-The API expects the PR #34 schema to be installed, including the private-data
-table, removed legacy PII/HMAC columns, `FIREBASE_UID` bootstrap, active-user
-UID constraint, and nullable UID for pending invitations. Existing irreversible
-hashes cannot be decrypted into AES-GCM ciphertext. The data team must complete
-any required recovery/backfill using an authorized source before deploying the
-API; do not mix this contract with an earlier installer variant.
+The API expects a future schema update to add the private-data table, while
+retaining the installer's token columns and `employee.cpf_lookup_hmac`. The API
+uses that HMAC column for CPF duplicate checks. The installer also makes
+`employee.name` and `employee.cpf` required protected tokens, and requires
+`app_user.email` and `app_user.cpf`; the API writes those fields. Existing
+irreversible hashes cannot be decrypted into AES-GCM ciphertext. Active
+personal data must come from an authorized source before it is stored in the
+future encrypted table.
