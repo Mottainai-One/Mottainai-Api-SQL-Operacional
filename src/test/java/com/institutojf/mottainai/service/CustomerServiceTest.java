@@ -149,8 +149,44 @@ class CustomerServiceTest {
                 new UpdateFirebaseCustomerProfileRequest("Ana Silva", "11999999999", true), "firebase-uid");
 
         assertTrue(response.marketingConsent());
+        assertEquals(ProtectedDataToken.phone("11999999999"), customer.getPhone());
+        assertEquals(ProtectedDataToken.customerName("Ana Silva"), customer.getFullName());
         verify(customerRepository).save(customer);
         verifyNoInteractions(customerAuthRepository);
+    }
+
+    @Test
+    void preservesProtectedPhoneWhenFirebaseProfileUpdateOmitsIt() {
+        Customer customer = new Customer();
+        customer.setId(8);
+        customer.setFullName(ProtectedDataToken.customerName("Ana"));
+        customer.setMarketingConsent(false);
+        customer.setPhone(ProtectedDataToken.phone("11999999999"));
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(
+                ProtectedDataToken.externalAuthUid("firebase-uid"))).thenReturn(Optional.of(customer));
+
+        service.updateFirebaseProfile(new UpdateFirebaseCustomerProfileRequest("Ana Silva", null, true),
+                "firebase-uid");
+
+        assertEquals(ProtectedDataToken.phone("11999999999"), customer.getPhone());
+        verify(customerRepository).save(customer);
+    }
+
+    @Test
+    void explicitlyBlankPhoneRemovesTheProtectedToken() {
+        Customer customer = new Customer();
+        customer.setId(8);
+        customer.setFullName(ProtectedDataToken.customerName("Ana"));
+        customer.setMarketingConsent(false);
+        customer.setPhone(ProtectedDataToken.phone("11999999999"));
+        when(customerRepository.findByExternalAuthUidAndActiveTrueAndDeletedAtIsNull(
+                ProtectedDataToken.externalAuthUid("firebase-uid"))).thenReturn(Optional.of(customer));
+
+        service.updateFirebaseProfile(new UpdateFirebaseCustomerProfileRequest("Ana", "", false),
+                "firebase-uid");
+
+        assertNull(customer.getPhone());
+        verify(customerRepository).save(customer);
     }
 
     @Test
