@@ -50,6 +50,9 @@ class CustomerServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private CustomerPrivateDataService privateDataService;
+
     @InjectMocks
     private CustomerService service;
 

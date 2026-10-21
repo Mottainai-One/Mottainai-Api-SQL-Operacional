@@ -49,4 +49,7 @@ public class Employee {
 
     @Column(name = "cpf_lookup_hmac", columnDefinition = "bytea")
     private byte[] cpfLookupHmac;
+
+    @Column(name = "email_lookup_hmac", columnDefinition = "bytea")
+    private byte[] emailLookupHmac;
 }

@@ -54,6 +54,11 @@ security:
       key-version: ${STAFF_DATA_KEY_VERSION:1}
       decryption-keys: ${STAFF_DATA_DECRYPTION_KEYS:}
       lookup-key: ${STAFF_DATA_LOOKUP_KEY:}
+  customer:
+    data:
+      encryption-key: ${CUSTOMER_DATA_ENCRYPTION_KEY:}
+      key-version: ${CUSTOMER_DATA_KEY_VERSION:1}
+      decryption-keys: ${CUSTOMER_DATA_DECRYPTION_KEYS:}
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:}
 

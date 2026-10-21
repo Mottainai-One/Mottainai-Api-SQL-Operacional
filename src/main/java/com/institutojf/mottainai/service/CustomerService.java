@@ -21,6 +21,8 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
 
+    private final CustomerPrivateDataService privateDataService;
+
     private final CustomerAuthRepository customerAuthRepository;
 
     private final CustomerGeofenceRepository geofenceRepository;
@@ -89,6 +91,7 @@ public class CustomerService {
         customer.setPhone(ProtectedDataToken.phone(request.phone()));
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
+        privateDataService.updateFirebaseProfile(customer, request.fullName(), request.phone());
         customerRepository.save(customer);
         auditLogRepository.record("customer", "UPDATE", customer.getId().toString(), null, oldData,
                 Map.of("full_name", customer.getFullName(), "marketing_consent", customer.getMarketingConsent()));
@@ -97,7 +100,8 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAll() {
-        return customerRepository.findByDeletedAtIsNullOrderByFullName()
+        // full_name is an irreversible token in the operational schema; sorting it is meaningless.
+        return customerRepository.findByDeletedAtIsNullOrderByIdAsc()
             .stream()
             .map(CustomerResponse::fromEntity)
             .toList();
@@ -106,6 +110,15 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public CustomerResponse find(Integer id) {
         return CustomerResponse.fromEntity(customer(id));
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerPrivateDataResponse privateData(Integer id) {
+        Customer customer = customer(id);
+        if (!Boolean.TRUE.equals(customer.getActive())) {
+            throw new ResourceNotFoundException("Customer not found");
+        }
+        return privateDataService.read(customer);
     }
 
     @Transactional
@@ -127,6 +140,8 @@ public class CustomerService {
         customer.setUpdatedAt(LocalDateTime.now());
 
         setAddressToken(customer, request.address());
+        privateDataService.updateProfile(customer, request.fullName(), request.email(), request.phone(),
+                request.birthDate(), request.address());
 
         customerAuthRepository.findByCustomer_Id(id).ifPresent(auth -> {
             auth.setLoginEmail(customer.getEmail());
@@ -162,6 +177,7 @@ public class CustomerService {
     @Transactional
     public void anonymize(Integer id) {
         Customer customer = customer(id);
+        privateDataService.erase(customer);
         String marker = UUID.randomUUID().toString();
         customer.setFullName(ProtectedDataToken.customerName("ANONYMIZED-" + marker));
         customer.setCpf(null);
@@ -278,6 +294,8 @@ public class CustomerService {
         customer.setUpdatedAt(now);
         setAddressToken(customer, addressRequest);
         customerRepository.save(customer);
+
+        privateDataService.save(customer, fullName, cpf, email, phone, birthDate, addressRequest);
 
         LoyaltyAccount account = new LoyaltyAccount();
         account.setCustomer(customer);

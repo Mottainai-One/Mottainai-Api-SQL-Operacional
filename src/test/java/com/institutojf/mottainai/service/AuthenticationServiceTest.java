@@ -284,6 +284,14 @@ class AuthenticationServiceTest {
         EmployeeRole role = new EmployeeRole();
         role.setId(1);
         role.setName(roleName);
+        role.setPermissionLevel(switch (roleName) {
+            case "Administrator" -> 100;
+            case "Manager" -> 80;
+            case "Supervisor" -> 60;
+            case "Operator" -> 40;
+            case "Intern" -> 20;
+            default -> -1;
+        });
         role.setActive(true);
         Employee employee = new Employee();
         employee.setId(4);

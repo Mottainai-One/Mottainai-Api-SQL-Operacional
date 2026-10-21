@@ -18,7 +18,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
 
     Optional<Customer> findByIdAndDeletedAtIsNull(Integer id);
 
-    List<Customer> findByDeletedAtIsNullOrderByFullName();
+    List<Customer> findByDeletedAtIsNullOrderByIdAsc();
 
     boolean existsByCpfAndDeletedAtIsNull(String cpf);
 

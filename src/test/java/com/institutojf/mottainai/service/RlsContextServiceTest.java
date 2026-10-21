@@ -61,6 +61,7 @@ class RlsContextServiceTest {
         user.setFirebaseUid("firebase-user-123");
         EmployeeRole role = new EmployeeRole();
         role.setName("MANAGER");
+        role.setPermissionLevel(80);
         role.setActive(true);
         Employee employee = new Employee();
         employee.setRole(role);
@@ -124,6 +125,14 @@ class RlsContextServiceTest {
         user.setFirebaseUid(uid);
         EmployeeRole role = new EmployeeRole();
         role.setName(roleName);
+        role.setPermissionLevel(switch (roleName) {
+            case "Administrator" -> 100;
+            case "Manager" -> 80;
+            case "Supervisor" -> 60;
+            case "Operator" -> 40;
+            case "Intern" -> 20;
+            default -> -1;
+        });
         role.setActive(true);
         Employee employee = new Employee();
         employee.setRole(role);

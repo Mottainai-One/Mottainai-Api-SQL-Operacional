@@ -7,6 +7,7 @@ import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateLoyaltyStatusRequest;
 import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
+import com.institutojf.mottainai.dto.response.CustomerPrivateDataResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
 import com.institutojf.mottainai.security.CustomerAccess;
@@ -63,6 +64,13 @@ public class CustomerController implements CustomerControllerApi {
     public CustomerResponse find(@PathVariable Integer id, Authentication authentication) {
         customerAccess.checkAccess(authentication, id);
         return customerService.find(id);
+    }
+
+    /** Staff-only retrieval of original PII; returns no data for inactive customers. */
+    @GetMapping("/{id}/private-data")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    public CustomerPrivateDataResponse privateData(@PathVariable Integer id) {
+        return customerService.privateData(id);
     }
 
     @Override

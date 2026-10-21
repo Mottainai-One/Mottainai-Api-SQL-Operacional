@@ -8,12 +8,13 @@ import org.junit.jupiter.api.Test;
 class StaffRoleAuthoritiesTest {
 
     @Test
-    void mapsEveryPr34DatabaseRoleToItsCanonicalAuthorities() {
-        assertEquals(List.of("ADMINISTRATOR", "MANAGER"), StaffRoleAuthorities.forDatabaseRole("Administrator"));
-        assertEquals(List.of("MANAGER"), StaffRoleAuthorities.forDatabaseRole("Manager"));
-        assertEquals(List.of("SUPERVISOR"), StaffRoleAuthorities.forDatabaseRole("Supervisor"));
-        assertEquals(List.of("OPERATOR"), StaffRoleAuthorities.forDatabaseRole("Operator"));
-        assertEquals(List.of("INTERN"), StaffRoleAuthorities.forDatabaseRole("Intern"));
-        assertEquals(List.of(), StaffRoleAuthorities.forDatabaseRole("Unrecognized role"));
+    void mapsOnlySeededPermissionLevelsToCanonicalAuthorities() {
+        assertEquals(List.of("ADMINISTRATOR", "MANAGER"), StaffRoleAuthorities.forPermissionLevel(100));
+        assertEquals(List.of("MANAGER"), StaffRoleAuthorities.forPermissionLevel(80));
+        assertEquals(List.of("SUPERVISOR"), StaffRoleAuthorities.forPermissionLevel(60));
+        assertEquals(List.of("OPERATOR"), StaffRoleAuthorities.forPermissionLevel(40));
+        assertEquals(List.of("INTERN"), StaffRoleAuthorities.forPermissionLevel(20));
+        assertEquals(List.of(), StaffRoleAuthorities.forPermissionLevel(10));
+        assertEquals(List.of(), StaffRoleAuthorities.forPermissionLevel(30));
     }
 }

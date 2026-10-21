@@ -239,7 +239,6 @@ class EmployeeServiceTest {
         verify(passwordResetTokenRepository).invalidateUnusedForUser(eq(20), any(OffsetDateTime.class));
         verify(invitationRepository).invalidateUnusedForUser(20);
         verify(sessionRepository).revokeAllForUser(20);
-        verify(entityManager).refresh(employee, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         verify(entityManager).refresh(employee.getEmployee(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
     }
 

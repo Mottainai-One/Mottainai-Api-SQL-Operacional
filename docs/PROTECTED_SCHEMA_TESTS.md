@@ -39,10 +39,12 @@ after verification.
 
 ## Staff schema contract and remaining SQL work
 
-Staff PII is stored in `employee_private_data` as AES-256-GCM ciphertext and
-nonce `BYTEA` pairs with masks and key metadata. Staff lookup uses verified
-Firebase UID; the API does not use staff HMAC indexes. The expected final
-contract and deployment dependency are documented in
+The API stores staff PII in `employee_private_data` as AES-256-GCM ciphertext
+and nonce `BYTEA` pairs with masks and key metadata. The received installer
+does not create that table, so adding it is a required database change. Staff
+CPF duplicate lookup uses `employee.cpf_lookup_hmac` and its unique index; the
+API calculates the HMAC with `STAFF_DATA_LOOKUP_KEY`. Staff identity lookup
+uses verified Firebase UID. The API contract and deployment dependency are documented in
 [STAFF_AES_GCM_SCHEMA_CONTRACT.md](STAFF_AES_GCM_SCHEMA_CONTRACT.md). This
 customer schema test does not verify staff writes, authentication, or the staff
-SQL contract from PR #34.
+SQL contract additions.
