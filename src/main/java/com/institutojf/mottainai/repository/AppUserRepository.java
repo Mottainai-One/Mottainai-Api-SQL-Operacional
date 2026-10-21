@@ -14,6 +14,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
+    @Query("""
+            SELECT COUNT(u) FROM AppUser u
+            WHERE u.employee.store.company.id = :companyId
+              AND u.deletedAt IS NULL
+              AND u.employee.deletedAt IS NULL
+              AND ((u.active = true AND u.employee.active = true)
+                   OR (u.active = false AND u.passwordSet = false AND u.firebaseUid IS NULL))
+            """)
+    long countUserSeatsByCompanyId(@Param("companyId") Integer companyId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM AppUser u WHERE u.id = :id")

@@ -180,13 +180,20 @@ public class AuthenticationService {
         if (appUserRepository.existsByFirebaseUid(firebaseUid) && !firebaseUid.equals(user.getFirebaseUid())) {
             throw new BusinessException("Firebase account is already linked to another user");
         }
+        Employee employee = user.getEmployee();
+        Integer companyId = employee.getStore().getCompany().getId();
+        long occupiedSeats = appUserRepository.countUserSeatsByCompanyId(companyId);
+        int userLimit = employee.getStore().getCompany().getPlan().getUserLimit();
+        if (occupiedSeats > userLimit) {
+            throw new BusinessException("Company reached the user limit of its subscription plan");
+        }
         user.setFirebaseUid(firebaseUid);
-        user.getEmployee().setActive(true);
+        employee.setActive(true);
         user.setActive(true);
         user.setPasswordSet(true);
-        employeeRepository.save(user.getEmployee());
+        employeeRepository.save(employee);
         invitationTokenRepository.markUsed(invitation.id());
-        auditLogRepository.record("employee", "UPDATE", user.getEmployee().getId().toString(), userId,
+        auditLogRepository.record("employee", "UPDATE", employee.getId().toString(), userId,
                 Map.of("active", false), Map.of("active", true));
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         appUserRepository.save(user);
