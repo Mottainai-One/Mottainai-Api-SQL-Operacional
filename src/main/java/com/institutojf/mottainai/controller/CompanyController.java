@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -41,7 +42,7 @@ public class CompanyController implements CompanyControllerApi {
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<CompanyResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<CompanyResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(companyService.findAll(pageable));
     }
 

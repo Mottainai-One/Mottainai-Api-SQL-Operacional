@@ -62,8 +62,9 @@ public class UserProfileService {
 
     private UserResponse toOwnProfileResponse(AppUser user) {
         Employee employee = user.getEmployee();
+        String formattedCpf = privateDataService.cpf(employee).replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
         return new UserResponse(user.getId(), privateDataService.name(employee),
-                privateDataService.cpf(employee), privateDataService.email(employee),
+                formattedCpf, privateDataService.email(employee),
                 privateDataService.phone(employee), employee.getRole().getName(),
                 user.getActive(), employee.getStore().getId());
     }

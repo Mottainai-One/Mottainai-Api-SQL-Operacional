@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,7 +31,7 @@ public class TaxProfileController implements TaxProfileControllerApi {
 
     @Override
     @GetMapping("/tax-profiles")
-    public ResponseEntity<Page<TaxProfileResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<TaxProfileResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(taxProfileService.findAll(pageable));
     }
 

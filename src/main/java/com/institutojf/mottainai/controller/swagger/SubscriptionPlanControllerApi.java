@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Subscription Plans", description = "API for managing subscription plans")
@@ -29,7 +30,7 @@ public interface SubscriptionPlanControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Subscription plan list found", content = @Content(schema = @Schema(implementation = SubscriptionPlanResponse.class)))
     })
-    ResponseEntity<Page<SubscriptionPlanResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<SubscriptionPlanResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a subscription plan by ID")
     @ApiResponses({

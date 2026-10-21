@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,7 +52,7 @@ public class SupplierController implements SupplierControllerApi {
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<SupplierResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<SupplierResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(supplierService.findAll(pageable));
     }
 
@@ -82,7 +83,7 @@ public class SupplierController implements SupplierControllerApi {
 
     @Override
     @GetMapping("/{id}/products")
-    public ResponseEntity<Page<SupplierProductResponse>> findProducts(@PathVariable Integer id, Pageable pageable) {
+    public ResponseEntity<Page<SupplierProductResponse>> findProducts(@PathVariable Integer id, @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(supplierProductService.findBySupplier(id, pageable));
     }
 

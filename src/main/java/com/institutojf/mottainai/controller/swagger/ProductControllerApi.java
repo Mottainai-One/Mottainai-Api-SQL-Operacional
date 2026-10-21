@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -44,7 +45,7 @@ public interface ProductControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product list found", content = @Content(schema = @Schema(implementation = ProductResponse.class)))
     })
-    ResponseEntity<Page<ProductResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<ProductResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a product by ID")
     @ApiResponses({
@@ -105,13 +106,13 @@ public interface ProductControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    ResponseEntity<Page<SupplierResponse>> findSuppliers(Pageable pageable);
+    ResponseEntity<Page<SupplierResponse>> findSuppliers(@ParameterObject Pageable pageable);
 
     @Operation(summary = "List suppliers linked to a product")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(Integer id, Pageable pageable);
+    ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(Integer id, @ParameterObject Pageable pageable);
 
     @Operation(summary = "Link a supplier to a product")
     @ApiResponses({

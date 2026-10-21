@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Addresses", description = "API for managing addresses")
@@ -28,7 +29,7 @@ public interface AddressControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Address list found", content = @Content(schema = @Schema(implementation = AddressResponse.class)))
     })
-    ResponseEntity<Page<AddressResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<AddressResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find an address by ID")
     @ApiResponses({

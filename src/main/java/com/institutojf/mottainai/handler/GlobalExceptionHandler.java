@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -29,6 +31,8 @@ import java.time.ZoneOffset;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(InvitationDeliveryException.class)
     public ResponseEntity<ApiError> handleInvitationDeliveryException(InvitationDeliveryException exception) {
@@ -63,6 +67,7 @@ public class GlobalExceptionHandler {
     // Outro erro ao acessar o banco
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiError> handleDataAccessException(DataAccessException exception) {
+        logger.error("Database access error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "Unable to process the request due to a database error", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

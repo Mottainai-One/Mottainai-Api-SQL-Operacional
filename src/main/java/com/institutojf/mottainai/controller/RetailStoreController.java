@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -44,7 +45,7 @@ public class RetailStoreController implements RetailStoreControllerApi {
     @Override
     @GetMapping
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public ResponseEntity<Page<RetailStoreResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<RetailStoreResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(retailStoreService.findAll(pageable));
     }
 

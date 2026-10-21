@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -32,7 +33,7 @@ public interface RetailStoreControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Retail store list found", content = @Content(schema = @Schema(implementation = RetailStoreResponse.class)))
     })
-    ResponseEntity<Page<RetailStoreResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<RetailStoreResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a retail store by ID")
     @ApiResponses({

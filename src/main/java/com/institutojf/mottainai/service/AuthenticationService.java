@@ -208,8 +208,6 @@ public class AuthenticationService {
         appUserRepository.save(user);
         passwordResetTokenRepository.invalidateUnusedForUser(user.getId(), OffsetDateTime.now(ZoneOffset.UTC));
         staffSessionRepository.revokeAllForUser(user.getId());
-        auditLogRepository.record("app_user", "UPDATE", user.getId().toString(), user.getId(), null,
-                Map.of("password_changed", true));
     }
 
     private TokenResponse tokenResponse(Authentication authentication, AppUser user, UUID sessionId, String refreshToken) {

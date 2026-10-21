@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -40,7 +41,7 @@ public class SubscriptionPlanController implements SubscriptionPlanControllerApi
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<SubscriptionPlanResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<SubscriptionPlanResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(subscriptionPlanService.findAll(pageable));
     }
 

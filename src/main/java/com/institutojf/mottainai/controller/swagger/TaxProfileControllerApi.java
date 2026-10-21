@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -22,7 +23,7 @@ public interface TaxProfileControllerApi {
             @ApiResponse(responseCode = "200", description = "Tax profiles found", content = @Content(schema = @Schema(implementation = TaxProfileResponse.class))),
             @ApiResponse(responseCode = "401", description = "Authentication required")
     })
-    ResponseEntity<Page<TaxProfileResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<TaxProfileResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Get a tax profile with its tax rules")
     @ApiResponses({

@@ -22,6 +22,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -65,7 +66,7 @@ public class ProductController implements ProductControllerApi {
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<ProductResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<ProductResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(productService.findAll(pageable));
     }
 
@@ -124,13 +125,13 @@ public class ProductController implements ProductControllerApi {
 
     @Override
     @GetMapping("/suppliers")
-    public ResponseEntity<Page<SupplierResponse>> findSuppliers(Pageable pageable) {
+    public ResponseEntity<Page<SupplierResponse>> findSuppliers(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(supplierService.findAll(pageable));
     }
 
     @Override
     @GetMapping("/{id}/suppliers")
-    public ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(@PathVariable Integer id, Pageable pageable) {
+    public ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(@PathVariable Integer id, @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(supplierProductService.findByProduct(id, pageable));
     }
 
