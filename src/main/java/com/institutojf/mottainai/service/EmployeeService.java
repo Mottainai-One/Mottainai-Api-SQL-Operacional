@@ -120,7 +120,7 @@ public class EmployeeService {
         user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
         user.setPasswordSet(false);
         user.setActive(false);
-        user = appUserRepository.saveAndFlush(user);
+        user.setId(appUserRepository.createStaffUser(employee.getId(), user.getPasswordHash(), false, false));
         String rawToken = tokenHashService.newToken();
         invitationRepository.create(user.getId(), tokenHashService.hash(rawToken),
                 OffsetDateTime.now(ZoneOffset.UTC).plusHours(48));
@@ -279,7 +279,7 @@ public class EmployeeService {
             user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
             user.setPasswordSet(false);
             user.setActive(false);
-            user = appUserRepository.saveAndFlush(user);
+            user.setId(appUserRepository.createStaffUser(employee.getId(), user.getPasswordHash(), false, false));
             auditLogRepository.record("app_user", "INSERT", user.getId().toString(), requestingUser.getId(), null,
                     Map.of("employee_id", employeeId, "active", false, "invitation_issued", true));
         }

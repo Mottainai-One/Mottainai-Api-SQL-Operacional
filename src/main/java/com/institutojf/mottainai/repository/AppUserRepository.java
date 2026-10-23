@@ -14,6 +14,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
+
+    @Query(value = "SELECT mottainai.fn_api_create_staff_user(:employeeId, :passwordHash, :active, :passwordSet)", nativeQuery = true)
+    Integer createStaffUser(@Param("employeeId") Integer employeeId,
+            @Param("passwordHash") String passwordHash,
+            @Param("active") Boolean active,
+            @Param("passwordSet") Boolean passwordSet);
     @Query("""
             SELECT COUNT(u) FROM AppUser u
             WHERE u.employee.store.company.id = :companyId

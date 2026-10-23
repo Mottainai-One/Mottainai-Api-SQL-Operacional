@@ -20,8 +20,9 @@ import java.util.ArrayList;
 public class AuditLogRepository {
 
     private static final String INSERT_AUDIT_LOG = """
-            INSERT INTO mottainai.audit_log (table_affected, operation, record_id, user_id, old_data, new_data)
-            VALUES (?, CAST(? AS mottainai.audit_operation), ?, ?, CAST(? AS JSONB), CAST(? AS JSONB))
+            SELECT mottainai.fn_api_record_audit(
+                ?, CAST(? AS mottainai.audit_operation), ?, ?, CAST(? AS JSONB), CAST(? AS JSONB)
+            )
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -30,8 +31,8 @@ public class AuditLogRepository {
 
     public void record(String table, String operation, String recordId, Integer actorUserId, Object oldData,
             Object newData) {
-        jdbcTemplate.update(INSERT_AUDIT_LOG, table, operation, recordId, actorUserId, toJson(oldData),
-                toJson(newData));
+        jdbcTemplate.queryForObject(INSERT_AUDIT_LOG, Boolean.class, table, operation, recordId, actorUserId,
+                toJson(oldData), toJson(newData));
     }
 
     public List<AuditLogResponse> findByEmployeeIdAndOperationDateBetween(Integer employeeId, LocalDateTime from,
