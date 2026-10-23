@@ -2,6 +2,7 @@ package com.institutojf.mottainai.handler;
 
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.CepNotFoundException;
+import com.institutojf.mottainai.exception.CepLookupUnavailableException;
 import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.InvitationDeliveryException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
@@ -85,6 +86,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleCepNotFoundException(CepNotFoundException exception) {
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 404, "NOT_FOUND", exception.getMessage(), null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(CepLookupUnavailableException.class)
+    public ResponseEntity<ApiError> handleCepLookupUnavailableException(CepLookupUnavailableException exception) {
+        var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE",
+                exception.getMessage(), null);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
     }
 
     // Dados que entram em conflito com outro cadastro

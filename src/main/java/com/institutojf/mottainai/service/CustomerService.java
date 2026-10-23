@@ -35,13 +35,16 @@ public class CustomerService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final BrasilApiService brasilApiService;
+
     @Transactional
     public CustomerResponse create(CreateCustomerRequest request) {
         validatePassword(request.password());
         ensureProfileIsAvailable(request.cpf(), request.email());
+        CreateAddressRequest resolvedAddress = brasilApiService.completeAddress(request.address());
         LocalDateTime now = LocalDateTime.now();
         Customer customer = createProfile(request.fullName(), request.cpf(), request.email(), request.phone(),
-                request.birthDate(), request.marketingConsent(), request.address(), null, now);
+                request.birthDate(), request.marketingConsent(), resolvedAddress, null, now);
 
         CustomerAuth auth = new CustomerAuth();
         auth.setCustomer(customer);
@@ -72,9 +75,10 @@ public class CustomerService {
             throw new ConflictException("Firebase identity is linked to an inactive customer");
         }
 
+        CreateAddressRequest resolvedAddress = brasilApiService.completeAddress(request.address());
         ensureProfileIsAvailable(request.cpf(), email);
         Customer customer = createProfile(request.fullName(), request.cpf(), email, request.phone(),
-                request.birthDate(), request.marketingConsent(), request.address(), externalAuthToken,
+                request.birthDate(), request.marketingConsent(), resolvedAddress, externalAuthToken,
                 LocalDateTime.now());
         return CustomerResponse.fromEntity(customer);
     }
@@ -129,6 +133,7 @@ public class CustomerService {
                 && customerRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(emailToken)) {
             throw new ConflictException("Email is already registered");
         }
+        CreateAddressRequest resolvedAddress = brasilApiService.completeAddress(request.address());
         Map<String, Object> oldData = new HashMap<>();
         oldData.put("email", customer.getEmail());
         oldData.put("marketing_consent", customer.getMarketingConsent());
@@ -139,9 +144,9 @@ public class CustomerService {
         customer.setMarketingConsent(request.marketingConsent());
         customer.setUpdatedAt(LocalDateTime.now());
 
-        setAddressToken(customer, request.address());
+        setAddressToken(customer, resolvedAddress);
         privateDataService.updateProfile(customer, request.fullName(), request.email(), request.phone(),
-                request.birthDate(), request.address());
+                request.birthDate(), resolvedAddress);
 
         customerAuthRepository.findByCustomer_Id(id).ifPresent(auth -> {
             auth.setLoginEmail(customer.getEmail());

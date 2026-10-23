@@ -12,6 +12,7 @@ import com.institutojf.mottainai.model.Supplier;
 import com.institutojf.mottainai.repository.ProductCommercialRepository;
 import com.institutojf.mottainai.repository.SupplierProductRepository;
 import com.institutojf.mottainai.repository.SupplierRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -101,8 +102,8 @@ public class SupplierService {
 
     private void applySupplierFields(String tradeName, String email, String phone, Supplier supplier) {
         supplier.setTradeName(tradeName);
-        supplier.setEmail(email);
-        supplier.setPhone(phone);
+        supplier.setEmail(ProtectedDataToken.email(email));
+        supplier.setPhone(ProtectedDataToken.phone(phone));
     }
 
     private Supplier findSupplierById(Integer id) {

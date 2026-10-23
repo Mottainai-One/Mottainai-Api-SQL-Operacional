@@ -25,7 +25,7 @@ public interface CustomerControllerApi {
     })
     List<CustomerResponse> findAll();
 
-    @Operation(summary = "create")
+    @Operation(summary = "create", description = "Customer address is optional. When supplied, CEP automatically fills street, neighborhood, city and state through BrasilAPI; number and complement remain manual.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Successful response")
     })
@@ -37,7 +37,7 @@ public interface CustomerControllerApi {
     })
     CustomerResponse find(Integer id, Authentication authentication);
 
-    @Operation(summary = "update")
+    @Operation(summary = "update", description = "When an address is supplied, its CEP is looked up through BrasilAPI. Number and complement remain manual.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
