@@ -11,9 +11,5 @@ public interface EmployeeRoleRepository extends JpaRepository<EmployeeRole, Inte
 
     Optional<EmployeeRole> findByIdAndDeletedAtIsNull(Integer id);
 
-    boolean existsByNameIgnoreCase(String name);
-
-    boolean existsByNameIgnoreCaseAndIdNot(String name, Integer id);
-
     List<EmployeeRole> findAllByActiveTrueAndDeletedAtIsNullOrderByPermissionLevelDescNameAsc();
 }

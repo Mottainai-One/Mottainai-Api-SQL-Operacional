@@ -42,7 +42,6 @@ public class EmployeePrivateDataService {
         if (data == null) {
             data = new EmployeePrivateData();
             data.setEmployee(employee);
-            data.setEmployeeId(employee.getId());
             employee.setPrivateData(data);
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
