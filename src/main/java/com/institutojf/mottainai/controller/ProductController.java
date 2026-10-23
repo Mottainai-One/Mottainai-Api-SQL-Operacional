@@ -58,8 +58,8 @@ public class ProductController implements ProductControllerApi {
 
     @Override
     @PostMapping
-    public ResponseEntity<ProductResponse> create(@Valid @RequestBody CreateProductRequest request) {
-        ProductResponse product = productService.create(request);
+    public ResponseEntity<ProductResponse> create(@Valid @RequestBody CreateProductRequest request, Authentication authentication) {
+        ProductResponse product = productService.create(request, authentication);
         URI location = URI.create("/api/v1/products/" + product.id());
         return ResponseEntity.created(location).body(product);
     }

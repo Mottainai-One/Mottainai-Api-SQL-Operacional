@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record ProductResponse(
         Integer id,
+        Integer companyId,
         Integer categoryId,
         String categoryName,
         Integer taxProfileId,
