@@ -4,12 +4,12 @@ import com.institutojf.mottainai.controller.swagger.CustomerControllerApi;
 import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
 import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
-import com.institutojf.mottainai.dto.request.UpdateLoyaltyStatusRequest;
+
 import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
 import com.institutojf.mottainai.dto.response.CustomerPrivateDataResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
-import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
+
 import com.institutojf.mottainai.security.CustomerAccess;
 import com.institutojf.mottainai.service.CustomerService;
 import com.institutojf.mottainai.service.LoyaltyService;
@@ -26,11 +26,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
+
 import java.util.List;
 
 @RestController
@@ -125,27 +125,11 @@ public class CustomerController implements CustomerControllerApi {
     }
 
     @Override
-    @PatchMapping("/{id}/loyalty/status")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public LoyaltyAccountResponse updateLoyaltyStatus(@PathVariable Integer id, @Valid @RequestBody UpdateLoyaltyStatusRequest request, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        return customerService.updateLoyaltyStatus(id, request);
-    }
-
-    @Override
     @GetMapping("/{id}/loyalty")
     @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
     public LoyaltyAccountResponse loyalty(@PathVariable Integer id, Authentication authentication) {
         customerAccess.checkAccess(authentication, id);
         return loyaltyService.getLoyaltyAccount(id);
-    }
-
-    @Override
-    @GetMapping("/{id}/loyalty/transactions")
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
-    public List<LoyaltyTransactionResponse> loyaltyTransactions(@PathVariable Integer id, @RequestParam LocalDateTime from, @RequestParam LocalDateTime to, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        return loyaltyService.getTransactions(id, from, to);
     }
 
 }

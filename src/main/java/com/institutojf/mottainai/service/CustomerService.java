@@ -253,19 +253,6 @@ public class CustomerService {
         geofenceRepository.save(geofence);
     }
 
-    @Transactional
-    public LoyaltyAccountResponse updateLoyaltyStatus(Integer customerId, UpdateLoyaltyStatusRequest request) {
-        customer(customerId);
-        LoyaltyAccount account = loyaltyAccountRepository.findByCustomer_Id(customerId)
-            .orElseThrow(() -> new ResourceNotFoundException("Loyalty account not found"));
-        account.setActive(request.active());
-        account.setUpdatedAt(LocalDateTime.now());
-        loyaltyAccountRepository.save(account);
-        auditLogRepository.record("loyalty_account", "UPDATE", account.getId().toString(), null, null,
-                Map.of("active", request.active()));
-        return LoyaltyAccountResponse.fromEntity(account);
-    }
-
     private Customer customer(Integer id) {
         return customerRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
