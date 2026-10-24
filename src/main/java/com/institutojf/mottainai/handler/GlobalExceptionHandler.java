@@ -45,6 +45,7 @@ public class GlobalExceptionHandler {
     // Erro de conexão com o banco
     @ExceptionHandler(SQLException.class)
     public ResponseEntity<ApiError> handleSqlException(SQLException exception) {
+        logger.error("Database connection error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE",
                 "Database service is temporarily unavailable", null);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
@@ -53,6 +54,7 @@ public class GlobalExceptionHandler {
     // Dados duplicados ou relacionados de forma inválida
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrityViolationException(DataIntegrityViolationException exception) {
+        logger.error("Database constraint violation while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 409, "CONFLICT",
                 "The operation violates an existing data constraint", null);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
@@ -177,6 +179,7 @@ public class GlobalExceptionHandler {
     // Erro inesperado durante a execução
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiError> handleRuntimeException(RuntimeException exception) {
+        logger.error("Unexpected runtime error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "An unexpected internal error occurred", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -185,6 +188,7 @@ public class GlobalExceptionHandler {
     // Captura qualquer exceção restante
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleException(Exception exception) {
+        logger.error("Unexpected error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "An unexpected internal error occurred", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
