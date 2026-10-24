@@ -67,7 +67,7 @@ public interface PurchaseOrderRepository extends Repository<AppUser, Integer> {
     }
 
     default List<PurchaseOrderData> findAll(Integer storeId, LocalDateTime from, LocalDateTime to) {
-        return queryAll(storeId, from, to).stream().map(PurchaseOrderProjection::toData).toList();
+        return queryAll(storeId, from, to).stream().map(this::withItems).toList();
     }
 
     default boolean update(PurchaseOrderData current, Integer supplierId, LocalDate expectedDeliveryDate, String observation, List<CreatePurchaseOrderItemRequest> items, Integer version) {
