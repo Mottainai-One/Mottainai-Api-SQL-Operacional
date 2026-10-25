@@ -28,7 +28,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
             and (:storeId = 0 or p.store.id = :storeId)
             and (:query = '' or lower(p.name) like lower(concat('%', :query, '%')))
             and exists (select i.id from PromotionItem i where i.promotion = p
-                and i.quantityAvailable > 0 and i.product.active = true and i.product.deletedAt is null)
+                and i.deletedAt is null and i.quantityAvailable > 0 and i.product.active = true and i.product.deletedAt is null)
         order by p.startsAt desc, p.id desc
         """)
     Page<Promotion> findCustomerPromotions(
@@ -44,7 +44,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
             and p.deletedAt is null and p.store.active = true and p.store.deletedAt is null
             and p.startsAt <= :now and p.endsAt > :now
             and exists (select i.id from PromotionItem i where i.promotion = p
-                and i.quantityAvailable > 0 and i.product.active = true and i.product.deletedAt is null)
+                and i.deletedAt is null and i.quantityAvailable > 0 and i.product.active = true and i.product.deletedAt is null)
         """)
     Optional<Promotion> findCustomerPromotion(
         @Param("id") Integer id,
