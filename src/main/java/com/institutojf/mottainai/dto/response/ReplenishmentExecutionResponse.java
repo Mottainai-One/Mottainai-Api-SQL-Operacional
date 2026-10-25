@@ -1,6 +1,7 @@
 package com.institutojf.mottainai.dto.response;
 
 import com.institutojf.mottainai.model.ReplenishmentExecution;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public record ReplenishmentExecutionResponse(
     public record Item(
             Integer id,
             Integer batchId,
+            @Schema(name = "replenishedQuantity", description = "Quantity replenished for this batch", example = "3")
             BigDecimal replenishedQuantity
     ) {
     }
