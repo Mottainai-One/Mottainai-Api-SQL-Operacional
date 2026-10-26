@@ -50,10 +50,10 @@ class PromotionItemServiceTest {
         promotion.setId(7);
         PromotionItem item = new PromotionItem();
         item.setPromotion(promotion);
-        when(promotionItemRepository.findById(5)).thenReturn(Optional.of(item));
+        when(promotionItemRepository.findByIdAndDeletedAtIsNull(5)).thenReturn(Optional.of(item));
         assertThrows(ResourceNotFoundException.class, () -> service.deletePromotionItem(9, 5, authentication));
         verify(inventoryAccess, never()).checkStoreAccess(authentication, 7);
-        verify(promotionItemRepository, never()).delete(item);
+        verify(promotionItemRepository, never()).save(item);
     }
 
 }
