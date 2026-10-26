@@ -28,7 +28,7 @@ class CustomerCatalogRepositoryQueryTest {
                 "p.store.deletedat is null",
                 "p.startsat <= :now",
                 "p.endsat > :now",
-                "exists (select i.id from promotionitem i where i.promotion = p and i.quantityavailable > 0",
+                "exists (select i.id from promotionitem i where i.promotion = p and i.deletedat is null and i.quantityavailable > 0",
                 "i.quantityavailable > 0",
                 "i.product.active = true",
                 "i.product.deletedat is null");
