@@ -11,6 +11,7 @@ import com.institutojf.mottainai.model.Company;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeeRole;
 import com.institutojf.mottainai.model.RetailStore;
+import com.institutojf.mottainai.model.SubscriptionPlan;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import com.institutojf.mottainai.repository.EmployeeActivityRepository;
@@ -126,6 +127,9 @@ class EmployeeServiceTest {
         Company company = new Company();
         company.setId(3);
         company.setActive(true);
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setUserLimit(10);
+        company.setPlan(plan);
         RetailStore requestersStore = new RetailStore();
         requestersStore.setId(5);
         requestersStore.setCompany(company);
