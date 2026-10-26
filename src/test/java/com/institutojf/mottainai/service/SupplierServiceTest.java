@@ -8,6 +8,7 @@ import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.mapper.SupplierMapper;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.model.Address;
 import com.institutojf.mottainai.model.Supplier;
 import com.institutojf.mottainai.repository.SupplierRepository;
@@ -121,7 +122,7 @@ class SupplierServiceTest {
 
         assertEquals(1, supplier.getAddress().getId());
         assertEquals("Fornecedor Atualizado", supplier.getTradeName());
-        assertEquals("novo@fornecedor.com", supplier.getEmail());
+        assertEquals(ProtectedDataToken.email("novo@fornecedor.com"), supplier.getEmail());
         assertEquals("11888888888", supplier.getPhone());
         assertTrue(supplier.getActive());
 
