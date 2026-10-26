@@ -123,7 +123,7 @@ class SupplierServiceTest {
         assertEquals(1, supplier.getAddress().getId());
         assertEquals("Fornecedor Atualizado", supplier.getTradeName());
         assertEquals(ProtectedDataToken.email("novo@fornecedor.com"), supplier.getEmail());
-        assertEquals("11888888888", supplier.getPhone());
+        assertEquals(ProtectedDataToken.phone("11888888888"), supplier.getPhone());
         assertTrue(supplier.getActive());
 
         verify(addressService).updateAddress(eq(1), any());
