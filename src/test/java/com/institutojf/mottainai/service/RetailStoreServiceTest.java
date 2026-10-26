@@ -8,6 +8,7 @@ import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.mapper.RetailStoreMapper;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.model.Address;
 import com.institutojf.mottainai.model.AppUser;
 import com.institutojf.mottainai.model.Company;
@@ -123,7 +124,7 @@ class RetailStoreServiceTest {
         when(retailStoreRepository.save(store)).thenReturn(store);
         retailStoreService.update(1, updateRequest(true));
         assertEquals("Loja Centro", store.getName());
-        assertEquals("loja@mottainai.com", store.getEmail());
+        assertEquals(ProtectedDataToken.email("loja@mottainai.com"), store.getEmail());
         verify(retailStoreRepository).save(store);
     }
 
