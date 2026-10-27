@@ -126,6 +126,8 @@ public class SecurityConfig {
                 .permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/customers")
                 .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/cep/**")
+                .permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**")
                 .hasRole("CUSTOMER")
                 .requestMatchers("/api/v1/customer-catalog/**")

@@ -11,6 +11,7 @@ import com.institutojf.mottainai.model.Company;
 import com.institutojf.mottainai.model.Employee;
 import com.institutojf.mottainai.model.EmployeeRole;
 import com.institutojf.mottainai.model.RetailStore;
+import com.institutojf.mottainai.model.SubscriptionPlan;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import com.institutojf.mottainai.repository.EmployeeActivityRepository;
@@ -126,6 +127,9 @@ class EmployeeServiceTest {
         Company company = new Company();
         company.setId(3);
         company.setActive(true);
+        SubscriptionPlan plan = new SubscriptionPlan();
+        plan.setUserLimit(10);
+        company.setPlan(plan);
         RetailStore requestersStore = new RetailStore();
         requestersStore.setId(5);
         requestersStore.setCompany(company);
@@ -154,11 +158,7 @@ class EmployeeServiceTest {
             employee.setId(10);
             return employee;
         });
-        when(appUserRepository.saveAndFlush(any(AppUser.class))).thenAnswer(invocation -> {
-            AppUser user = invocation.getArgument(0);
-            user.setId(20);
-            return user;
-        });
+        when(appUserRepository.createStaffUser(10, "bcrypt-placeholder", false, false)).thenReturn(20);
         when(tokenHashService.newToken()).thenReturn("placeholder-password", "invitation-secret");
         when(tokenHashService.hash("invitation-secret")).thenReturn("invitation-hash");
         when(passwordEncoder.encode(anyString())).thenReturn("bcrypt-placeholder");
@@ -175,9 +175,7 @@ class EmployeeServiceTest {
                 org.mockito.ArgumentMatchers.isNull());
         verify(invitationRepository).create(org.mockito.ArgumentMatchers.eq(20),
                 org.mockito.ArgumentMatchers.eq("invitation-hash"), any());
-        verify(appUserRepository).saveAndFlush(org.mockito.ArgumentMatchers.argThat(user ->
-                !Boolean.TRUE.equals(user.getActive()) && Boolean.FALSE.equals(user.getPasswordSet())
-                        && user.getFirebaseUid() == null));
+        verify(appUserRepository).createStaffUser(10, "bcrypt-placeholder", false, false);
         assertFalse(response.active());
     }
 

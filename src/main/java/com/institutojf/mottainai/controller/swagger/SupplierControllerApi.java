@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -25,7 +26,7 @@ import java.util.List;
 @Tag(name = "Suppliers", description = "API for managing suppliers")
 public interface SupplierControllerApi {
 
-    @Operation(summary = "Create a supplier")
+    @Operation(summary = "Create a supplier", description = "The address CEP automatically fills street, neighborhood, city and state through BrasilAPI. Number and complement are entered manually.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Supplier created", content = @Content(schema = @Schema(implementation = SupplierResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
@@ -38,7 +39,7 @@ public interface SupplierControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Supplier list found", content = @Content(schema = @Schema(implementation = SupplierResponse.class)))
     })
-    ResponseEntity<Page<SupplierResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<SupplierResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a supplier by ID")
     @ApiResponses({
@@ -47,7 +48,7 @@ public interface SupplierControllerApi {
     })
     ResponseEntity<SupplierResponse> findById(Integer id);
 
-    @Operation(summary = "Update a supplier")
+    @Operation(summary = "Update a supplier", description = "The address CEP is looked up through BrasilAPI on update. Number and complement remain manual fields.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Supplier updated", content = @Content(schema = @Schema(implementation = SupplierResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
@@ -74,7 +75,7 @@ public interface SupplierControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    ResponseEntity<Page<SupplierProductResponse>> findProducts(Integer id, Pageable pageable);
+    ResponseEntity<Page<SupplierProductResponse>> findProducts(Integer id, @ParameterObject Pageable pageable);
 
     @Operation(summary = "Link a product to a supplier")
     @ApiResponses({

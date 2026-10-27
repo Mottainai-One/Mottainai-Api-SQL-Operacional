@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -31,20 +32,20 @@ import java.util.List;
 @Tag(name = "Products", description = "API for managing products")
 public interface ProductControllerApi {
 
-    @Operation(summary = "Create a product")
+    @Operation(summary = "Create a product", description = "The company is resolved from the authenticated user account; do not include companyId in the request body.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Product created", content = @Content(schema = @Schema(implementation = ProductResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Product category not found", content = @Content(schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Barcode already exists", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
-    ResponseEntity<ProductResponse> create(CreateProductRequest request);
+    ResponseEntity<ProductResponse> create(CreateProductRequest request, Authentication authentication);
 
     @Operation(summary = "Find all products")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product list found", content = @Content(schema = @Schema(implementation = ProductResponse.class)))
     })
-    ResponseEntity<Page<ProductResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<ProductResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a product by ID")
     @ApiResponses({
@@ -105,13 +106,13 @@ public interface ProductControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    ResponseEntity<Page<SupplierResponse>> findSuppliers(Pageable pageable);
+    ResponseEntity<Page<SupplierResponse>> findSuppliers(@ParameterObject Pageable pageable);
 
     @Operation(summary = "List suppliers linked to a product")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
-    ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(Integer id, Pageable pageable);
+    ResponseEntity<Page<SupplierProductResponse>> findSuppliersByProduct(Integer id, @ParameterObject Pageable pageable);
 
     @Operation(summary = "Link a supplier to a product")
     @ApiResponses({

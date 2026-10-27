@@ -35,7 +35,7 @@ class EmployeePrivateDataServiceTest {
 
         EmployeePrivateData saved = service.save(employee, "Ana Silva", "123.456.789-09", "ANA@example.com", "+55 11 99999-1242");
 
-        assertEquals(44, saved.getEmployeeId());
+        assertEquals(44, saved.getEmployee().getId());
         assertNotNull(saved.getNameCiphertext());
         assertNotNull(saved.getNameNonce());
         assertNotNull(saved.getCpfCiphertext());

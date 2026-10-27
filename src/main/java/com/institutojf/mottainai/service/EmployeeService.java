@@ -94,6 +94,9 @@ public class EmployeeService {
         if (!store.getCompany().getId().equals(requestingUser.getEmployee().getStore().getCompany().getId())) {
             throw new ResourceNotFoundException("Store not found");
         }
+        if (createLogin) {
+            ensureUserLimitNotReached(store);
+        }
         if (privateDataService.cpfExists(cpf, null)) {
             throw new ConflictException("CPF already exists");
         }
@@ -117,7 +120,7 @@ public class EmployeeService {
         user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
         user.setPasswordSet(false);
         user.setActive(false);
-        user = appUserRepository.saveAndFlush(user);
+        user.setId(appUserRepository.createStaffUser(employee.getId(), user.getPasswordHash(), false, false));
         String rawToken = tokenHashService.newToken();
         invitationRepository.create(user.getId(), tokenHashService.hash(rawToken),
                 OffsetDateTime.now(ZoneOffset.UTC).plusHours(48));
@@ -240,6 +243,9 @@ public class EmployeeService {
                 || employee.getStore().getDeletedAt() != null)) {
             throw new BusinessException("The employee's role and store must be active before activation");
         }
+        if (request.active() && user != null && !Boolean.TRUE.equals(user.getActive())) {
+            ensureUserLimitNotReached(employee.getStore());
+        }
         boolean oldActive = Boolean.TRUE.equals(employee.getActive());
         employee.setActive(request.active());
         employeeRepository.save(employee);
@@ -267,12 +273,13 @@ public class EmployeeService {
             if (email == null || email.isBlank()) {
                 throw new BusinessException("Add an email before granting login access");
             }
+            ensureUserLimitNotReached(employee.getStore());
             user = new AppUser();
             user.setEmployee(employee);
             user.setPasswordHash(passwordEncoder.encode(tokenHashService.newToken()));
             user.setPasswordSet(false);
             user.setActive(false);
-            user = appUserRepository.saveAndFlush(user);
+            user.setId(appUserRepository.createStaffUser(employee.getId(), user.getPasswordHash(), false, false));
             auditLogRepository.record("app_user", "INSERT", user.getId().toString(), requestingUser.getId(), null,
                     Map.of("employee_id", employeeId, "active", false, "invitation_issued", true));
         }
@@ -383,6 +390,18 @@ public class EmployeeService {
                 appUserRepository.findByEmployeeId(employee.getId()).orElse(null));
     }
 
+    /**
+     * Active login accounts and pending invitations reserve a plan seat.
+     * Employees without an app_user account do not consume the user limit.
+     */
+    private void ensureUserLimitNotReached(RetailStore store) {
+        Integer companyId = store.getCompany().getId();
+        long occupiedSeats = appUserRepository.countUserSeatsByCompanyId(companyId);
+        int userLimit = store.getCompany().getPlan().getUserLimit();
+        if (occupiedSeats >= userLimit) {
+            throw new BusinessException("Company reached the user limit of its subscription plan");
+        }
+    }
     private EmployeeResponse response(Employee employee, AppUser user) {
         return new EmployeeResponse(employee.getId(), user == null ? null : user.getId(),
                 privateDataService.name(employee), privateDataService.cpfMasked(employee),

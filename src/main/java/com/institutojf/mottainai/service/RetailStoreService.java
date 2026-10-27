@@ -14,6 +14,7 @@ import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import com.institutojf.mottainai.repository.CompanyRepository;
 import com.institutojf.mottainai.repository.RetailStoreRepository;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -131,8 +132,8 @@ public class RetailStoreService {
 
     private void applyStoreFields(String name, String email, String phone, BigDecimal latitude, BigDecimal longitude, RetailStore store) {
         store.setName(name);
-        store.setEmail(email);
-        store.setPhone(phone);
+        store.setEmail(ProtectedDataToken.email(email));
+        store.setPhone(ProtectedDataToken.phone(phone));
         store.setLatitude(latitude);
         store.setLongitude(longitude);
     }

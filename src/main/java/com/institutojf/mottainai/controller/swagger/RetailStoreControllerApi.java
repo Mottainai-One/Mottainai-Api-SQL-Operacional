@@ -13,13 +13,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
 @Tag(name = "Retail Stores", description = "API for managing retail stores")
 public interface RetailStoreControllerApi {
 
-    @Operation(summary = "Create a retail store")
+    @Operation(summary = "Create a retail store", description = "The address CEP automatically fills street, neighborhood, city and state through BrasilAPI. Number and complement are entered manually.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Retail store created", content = @Content(schema = @Schema(implementation = RetailStoreResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
@@ -32,7 +33,7 @@ public interface RetailStoreControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Retail store list found", content = @Content(schema = @Schema(implementation = RetailStoreResponse.class)))
     })
-    ResponseEntity<Page<RetailStoreResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<RetailStoreResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a retail store by ID")
     @ApiResponses({
@@ -41,7 +42,7 @@ public interface RetailStoreControllerApi {
     })
     ResponseEntity<RetailStoreResponse> findById(Integer id);
 
-    @Operation(summary = "Update a retail store")
+    @Operation(summary = "Update a retail store", description = "The address CEP is looked up through BrasilAPI on update. Number and complement remain manual fields.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Retail store updated", content = @Content(schema = @Schema(implementation = RetailStoreResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),

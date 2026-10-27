@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -54,7 +56,8 @@ public class Promotion {
     private LocalDateTime endsAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "promotion_status")
     private PromotionStatus status = PromotionStatus.PENDING_APPROVAL;
 
     @Column(nullable = false)

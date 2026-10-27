@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,7 +39,7 @@ public class ProductCategoryController implements ProductCategoryControllerApi {
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<ProductCategoryResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<ProductCategoryResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(categoryService.findAll(pageable));
     }
 

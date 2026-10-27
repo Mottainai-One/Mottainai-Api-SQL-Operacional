@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Product Categories", description = "API for managing product categories")
@@ -29,7 +30,7 @@ public interface ProductCategoryControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product category list found", content = @Content(schema = @Schema(implementation = ProductCategoryResponse.class)))
     })
-    ResponseEntity<Page<ProductCategoryResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<ProductCategoryResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a product category by ID")
     @ApiResponses({

@@ -47,7 +47,7 @@ class UserProfileServiceTest {
         user.setEmployee(employee);
         when(appUserRepository.findByFirebaseUidAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
         when(privateDataService.name(employee)).thenReturn("Ana Silva");
-        when(privateDataService.cpfMasked(employee)).thenReturn("***.***.***-**");
+        when(privateDataService.cpf(employee)).thenReturn("12345678909");
         when(privateDataService.email(employee)).thenReturn("ana@example.com");
         when(privateDataService.phone(employee)).thenReturn("***-**42");
         UserProfileService service = new UserProfileService(appUserRepository, retailStoreMapper, privateDataService);
@@ -55,7 +55,7 @@ class UserProfileServiceTest {
         var response = service.me(uid);
 
         assertEquals("Ana Silva", response.name());
-        assertEquals("***.***.***-**", response.cpf());
+        assertEquals("123.456.789-09", response.cpf());
         assertEquals("ana@example.com", response.email());
         assertEquals("***-**42", response.phone());
         assertEquals("MANAGER", response.role());

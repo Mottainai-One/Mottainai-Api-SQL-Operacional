@@ -10,8 +10,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 
-    long countByRole_IdAndDeletedAtIsNull(Integer roleId);
-
     List<Employee> findAllByStore_Company_IdAndDeletedAtIsNull(Integer companyId);
 
     boolean existsByCpfLookupHmac(byte[] cpfLookupHmac);

@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -67,44 +68,44 @@ class ProductControllerTest {
     @Test
     @DisplayName("Should create product with location header")
     void shouldCreateProductWithLocationHeader() throws Exception {
-        when(productService.create(any())).thenReturn(response());
+        when(productService.create(any(), any())).thenReturn(response());
         mockMvc
-            .perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON)
+            .perform(post("/api/v1/products").principal(new UsernamePasswordAuthenticationToken("admin", null)).contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request())))
             .andExpect(status().isCreated())
             .andExpect(header().string("Location", "/api/v1/products/1"))
             .andExpect(jsonPath("$.barcode").value("7891234567890"));
-        verify(productService).create(any());
+        verify(productService).create(any(), any());
     }
 
     @Test
     @DisplayName("Should reject invalid product request")
     void shouldRejectInvalidProductRequest() throws Exception {
         mockMvc
-            .perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON)
+            .perform(post("/api/v1/products").principal(new UsernamePasswordAuthenticationToken("admin", null)).contentType(MediaType.APPLICATION_JSON)
                     .content("{\"categoryId\":1,\"barcode\":\"\",\"name\":\"Rice\",\"unitMeasure\":\"KG\"}"))
             .andExpect(status().isBadRequest());
-        verify(productService, never()).create(any());
+        verify(productService, never()).create(any(), any());
     }
 
     @Test
     @DisplayName("Should reject product weight with more than three decimal places")
     void shouldRejectProductWeightWithMoreThanThreeDecimalPlaces() throws Exception {
-        mockMvc.perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/products").principal(new UsernamePasswordAuthenticationToken("admin", null)).contentType(MediaType.APPLICATION_JSON)
             .content(
                     "{\"categoryId\":1,\"barcode\":\"7891234567890\",\"name\":\"Rice\",\"unitMeasure\":\"KG\",\"weight\":1.1234}"))
             .andExpect(status().isBadRequest());
-        verify(productService, never()).create(any());
+        verify(productService, never()).create(any(), any());
     }
 
     @Test
     @DisplayName("Should reject product with invalid CEST format")
     void shouldRejectProductWithInvalidCestFormat() throws Exception {
-        mockMvc.perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/v1/products").principal(new UsernamePasswordAuthenticationToken("admin", null)).contentType(MediaType.APPLICATION_JSON)
             .content(
                     "{\"categoryId\":1,\"taxProfileId\":1,\"barcode\":\"7891234567890\",\"ncm\":\"12345678\",\"cest\":\"123456\",\"name\":\"Rice\",\"unitMeasure\":\"KG\"}"))
             .andExpect(status().isBadRequest());
-        verify(productService, never()).create(any());
+        verify(productService, never()).create(any(), any());
     }
 
     @Test
@@ -143,7 +144,7 @@ class ProductControllerTest {
     }
 
     private ProductResponse response() {
-        return new ProductResponse(1, 1, "Food", 1, "RIC-001", "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1);
+        return new ProductResponse(1, 1, 1, "Food", 1, "RIC-001", "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1);
     }
 
 }

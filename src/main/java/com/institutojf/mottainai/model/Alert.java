@@ -14,6 +14,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -42,15 +44,18 @@ public class Alert {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "alert_type", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "alert_type", nullable = false, columnDefinition = "alert_type")
     private AlertType alertType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "priority_level")
     private PriorityLevel priority = PriorityLevel.MEDIUM;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "alert_status")
     private AlertStatus status = AlertStatus.ACTIVE;
 
     @Column(name = "generated_at", nullable = false)

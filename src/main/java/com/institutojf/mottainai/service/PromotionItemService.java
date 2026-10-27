@@ -40,7 +40,7 @@ public class PromotionItemService {
         if (request.promotionalPrice().compareTo(request.originalPrice()) > 0) {
             throw new BusinessException("Promotional price cannot be greater than original price");
         }
-        if (promotionItemRepository.findByPromotion_IdAndProduct_Id(promotionId, request.productId()).isPresent()) {
+        if (promotionItemRepository.findByPromotion_IdAndProduct_IdAndDeletedAtIsNull(promotionId, request.productId()).isPresent()) {
             throw new BusinessException("Product is already in this promotion");
         }
         PromotionItem item = new PromotionItem();
@@ -56,7 +56,7 @@ public class PromotionItemService {
     @Transactional(readOnly = true)
     public List<PromotionItemResponse> getItemsByPromotion(Integer promotionId, Authentication authentication) {
         findAccessiblePromotion(promotionId, authentication);
-        return promotionItemRepository.findByPromotion_Id(promotionId)
+        return promotionItemRepository.findByPromotion_IdAndDeletedAtIsNull(promotionId)
             .stream()
             .map(PromotionItemResponse::fromEntity)
             .toList();
@@ -64,18 +64,19 @@ public class PromotionItemService {
 
     @Transactional
     public void deletePromotionItem(Integer promotionId, Integer id, Authentication authentication) {
-        PromotionItem item = promotionItemRepository.findById(id)
+        PromotionItem item = promotionItemRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResourceNotFoundException("Promotion item not found"));
         if (!promotionId.equals(item.getPromotion().getId())) {
             throw new ResourceNotFoundException("Promotion item not found");
         }
         inventoryAccess.checkStoreAccess(authentication, item.getPromotion().getStore().getId());
-        promotionItemRepository.delete(item);
+        item.setDeletedAt(LocalDateTime.now());
+        promotionItemRepository.save(item);
     }
 
     @Transactional
     public PromotionItemResponse updatePromotionItem(Integer promotionId, Integer id, UpdatePromotionItemRequest request, Authentication authentication) {
-        PromotionItem item = promotionItemRepository.findById(id)
+        PromotionItem item = promotionItemRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResourceNotFoundException("Promotion item not found"));
         if (!promotionId.equals(item.getPromotion().getId())) {
             throw new ResourceNotFoundException("Promotion item not found");

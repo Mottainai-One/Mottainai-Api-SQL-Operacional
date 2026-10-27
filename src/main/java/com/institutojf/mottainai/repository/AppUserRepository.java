@@ -15,6 +15,21 @@ import java.util.Optional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
 
+    @Query(value = "SELECT mottainai.fn_api_create_staff_user(:employeeId, :passwordHash, :active, :passwordSet)", nativeQuery = true)
+    Integer createStaffUser(@Param("employeeId") Integer employeeId,
+            @Param("passwordHash") String passwordHash,
+            @Param("active") Boolean active,
+            @Param("passwordSet") Boolean passwordSet);
+    @Query("""
+            SELECT COUNT(u) FROM AppUser u
+            WHERE u.employee.store.company.id = :companyId
+              AND u.deletedAt IS NULL
+              AND u.employee.deletedAt IS NULL
+              AND ((u.active = true AND u.employee.active = true)
+                   OR (u.active = false AND u.passwordSet = false AND u.firebaseUid IS NULL))
+            """)
+    long countUserSeatsByCompanyId(@Param("companyId") Integer companyId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM AppUser u WHERE u.id = :id")
     Optional<AppUser> findByIdWithWriteLock(@Param("id") Integer id);

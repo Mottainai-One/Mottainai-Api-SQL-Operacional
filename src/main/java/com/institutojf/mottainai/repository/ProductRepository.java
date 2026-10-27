@@ -26,7 +26,7 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      */
     Page<Product> findAllByActiveTrueAndDeletedAtIsNull(Pageable pageable);
 
-    boolean existsByBarcode(String barcode);
+    boolean existsByCompany_IdAndBarcode(Integer companyId, String barcode);
 
     boolean existsByCategory_IdAndActiveTrueAndDeletedAtIsNull(Integer categoryId);
 

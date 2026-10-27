@@ -66,7 +66,7 @@ public interface ReceivingRepository extends Repository<AppUser, Integer> {
     }
 
     default List<ReceivingData> findAll(Integer storeId, LocalDateTime from, LocalDateTime to) {
-        return queryAll(storeId, from, to).stream().map(ReceivingProjection::toData).toList();
+        return queryAll(storeId, from, to).stream().map(this::withItems).toList();
     }
 
     default void updateStatus(Integer id, ReceivingStatus status) {

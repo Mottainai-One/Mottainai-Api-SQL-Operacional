@@ -22,12 +22,15 @@ public class AddressService {
 
     private final AddressMapper addressMapper;
 
+    private final BrasilApiService brasilApiService;
+
     @Transactional
     public AddressResponse create(CreateAddressRequest request) {
         return addressMapper.toResponse(createAddress(request));
     }
 
     public Address createAddress(CreateAddressRequest request) {
+        request = brasilApiService.completeAddress(request);
         validateAddressUniqueness(
                 request.zipCode(), request.street(), request.number(), request.complement(), null
         );
@@ -54,6 +57,7 @@ public class AddressService {
 
     public Address updateAddress(Integer id, UpdateAddressRequest request) {
         Address address = findAddressById(id);
+        request = brasilApiService.completeAddress(request);
         validateAddressUniqueness(request.zipCode(), request.street(), request.number(), request.complement(), id);
         applyUpdateRequest(request, address);
         return addressRepository.save(address);

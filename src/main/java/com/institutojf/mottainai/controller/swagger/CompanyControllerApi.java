@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -31,7 +32,7 @@ public interface CompanyControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Company list found", content = @Content(schema = @Schema(implementation = CompanyResponse.class)))
     })
-    ResponseEntity<Page<CompanyResponse>> findAll(Pageable pageable);
+    ResponseEntity<Page<CompanyResponse>> findAll(@ParameterObject Pageable pageable);
 
     @Operation(summary = "Find a company by ID")
     @ApiResponses({

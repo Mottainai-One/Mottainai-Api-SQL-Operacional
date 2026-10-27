@@ -9,6 +9,7 @@ import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.model.*;
 import com.institutojf.mottainai.repository.*;
 import com.institutojf.mottainai.security.ProtectedDataToken;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,8 +54,17 @@ class CustomerServiceTest {
     @Mock
     private CustomerPrivateDataService privateDataService;
 
+    @Mock
+    private BrasilApiService brasilApiService;
+
     @InjectMocks
     private CustomerService service;
+
+    @BeforeEach
+    void stubCepLookup() {
+        lenient().when(brasilApiService.completeAddress(any(CreateAddressRequest.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @Test
     @DisplayName("Should create customer authentication and loyalty account atomically")

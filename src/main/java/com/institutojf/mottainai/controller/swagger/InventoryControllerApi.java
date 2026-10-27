@@ -6,6 +6,8 @@ import com.institutojf.mottainai.dto.request.UpdateInventoryRequest;
 import com.institutojf.mottainai.dto.response.InventoryMovementResponse;
 import com.institutojf.mottainai.dto.response.InventoryResponse;
 import com.institutojf.mottainai.handler.ApiError;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -43,7 +45,7 @@ public interface InventoryControllerApi {
             @ApiResponse(responseCode = "404", description = "Store or batch not found", content = @Content(schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Inventory entry already exists", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
-    ResponseEntity<InventoryResponse> create(CreateInventoryRequest request, Authentication authentication);
+    ResponseEntity<InventoryResponse> create(@Valid CreateInventoryRequest request, Authentication authentication);
 
     @Operation(summary = "Update an inventory entry")
     @ApiResponses({
@@ -51,7 +53,7 @@ public interface InventoryControllerApi {
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Inventory not found", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
-    ResponseEntity<InventoryResponse> update(Integer id, UpdateInventoryRequest request, Authentication authentication);
+    ResponseEntity<InventoryResponse> update(Integer id, @Valid UpdateInventoryRequest request, Authentication authentication);
 
     @Operation(summary = "Deactivate an inventory entry")
     @ApiResponses({
@@ -71,7 +73,7 @@ public interface InventoryControllerApi {
             @ApiResponse(responseCode = "200", description = "Inventory entries found", content = @Content(schema = @Schema(implementation = InventoryResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
-    ResponseEntity<List<InventoryResponse>> findExpiring(Integer storeId, int days, Authentication authentication);
+    ResponseEntity<List<InventoryResponse>> findExpiring(Integer storeId, @Min(0) int days, Authentication authentication);
 
     @Operation(summary = "Find movements for an inventory entry")
     @ApiResponses({
@@ -87,6 +89,6 @@ public interface InventoryControllerApi {
             @ApiResponse(responseCode = "400", description = "Invalid request or insufficient inventory balance", content = @Content(schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Inventory not found", content = @Content(schema = @Schema(implementation = ApiError.class)))
     })
-    ResponseEntity<InventoryMovementResponse> createMovement(Integer id, CreateInventoryMovementRequest request, String idempotencyKey, Authentication authentication);
+    ResponseEntity<InventoryMovementResponse> createMovement(Integer id, @Valid CreateInventoryMovementRequest request, String idempotencyKey, Authentication authentication);
 
 }

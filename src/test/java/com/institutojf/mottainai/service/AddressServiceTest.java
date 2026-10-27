@@ -6,6 +6,7 @@ import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.mapper.AddressMapper;
 import com.institutojf.mottainai.model.Address;
 import com.institutojf.mottainai.repository.AddressRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,8 +33,19 @@ class AddressServiceTest {
     @Mock
     private AddressMapper addressMapper;
 
+    @Mock
+    private BrasilApiService brasilApiService;
+
     @InjectMocks
     private AddressService addressService;
+
+    @BeforeEach
+    void stubCepLookup() {
+        lenient().when(brasilApiService.completeAddress(any(CreateAddressRequest.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(brasilApiService.completeAddress(any(UpdateAddressRequest.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     @Test
     @DisplayName("Should reject duplicate address after normalizing whitespace")

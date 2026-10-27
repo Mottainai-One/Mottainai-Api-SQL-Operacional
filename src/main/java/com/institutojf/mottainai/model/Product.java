@@ -34,6 +34,10 @@ public class Product {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
+    private Company company;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private ProductCategory category;
 
@@ -41,10 +45,10 @@ public class Product {
     @JoinColumn(name = "tax_profile_id", nullable = false)
     private TaxProfile taxProfile;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String sku;
 
-    @Column(nullable = false, unique = true, length = 30)
+    @Column(nullable = false, length = 30)
     private String barcode;
 
     @Column(nullable = false, length = 8)

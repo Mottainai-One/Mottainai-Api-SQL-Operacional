@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +38,7 @@ public class AddressController implements AddressControllerApi {
 
     @Override
     @GetMapping
-    public ResponseEntity<Page<AddressResponse>> findAll(Pageable pageable) {
+    public ResponseEntity<Page<AddressResponse>> findAll(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(addressService.findAll(pageable));
     }
 

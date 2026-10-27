@@ -43,35 +43,6 @@ public class OutboxEventRepository {
                 }, idempotencyKey);
     }
 
-    public boolean isLoyaltyRedemptionFor(Event event, Integer customerId, Integer rewardId) {
-        if (!"LOYALTY_REDEMPTION".equals(event.eventType()) || !"loyalty_redemption".equals(event.aggregateType())) {
-            return false;
-        }
-        try {
-            JsonNode eventData = jsonMapper.readTree(event.eventData());
-            return eventData.path("customer_id").asInt(Integer.MIN_VALUE) == customerId
-                    && eventData.path("reward_id").asInt(Integer.MIN_VALUE) == rewardId;
-        }
-        catch (JacksonException exception) {
-            throw new IllegalStateException("Stored outbox event contains invalid JSON", exception);
-        }
-    }
-
-    public void publishLoyaltyRedemption(String redemptionId, Integer customerId, Integer rewardId, Integer pointsSpent,
-            String idempotencyKey) {
-        String eventData;
-        try {
-            eventData = jsonMapper.writeValueAsString(Map.of("redemption_id", redemptionId, "customer_id", customerId,
-                    "reward_id", rewardId, "points_spent", pointsSpent));
-        }
-        catch (JacksonException exception) {
-            throw new IllegalStateException("Could not serialize loyalty redemption event", exception);
-        }
-        jdbcTemplate.queryForObject(
-                "SELECT mottainai.fn_publish_integration_event(?, ?, ?, CAST(? AS jsonb), NULL, NULL, ?, 5)",
-                Object.class, "LOYALTY_REDEMPTION", "loyalty_redemption", redemptionId, eventData, idempotencyKey);
-    }
-
     public boolean isPurchaseOrderFor(Event event, String requestHash) {
         if (!"PURCHASE_ORDER_CREATED".equals(event.eventType()) || !"purchase_order".equals(event.aggregateType())) {
             return false;

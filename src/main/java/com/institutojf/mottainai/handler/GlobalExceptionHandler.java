@@ -2,6 +2,7 @@ package com.institutojf.mottainai.handler;
 
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.CepNotFoundException;
+import com.institutojf.mottainai.exception.CepLookupUnavailableException;
 import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.InvitationDeliveryException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -30,6 +33,8 @@ import java.time.ZoneOffset;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(InvitationDeliveryException.class)
     public ResponseEntity<ApiError> handleInvitationDeliveryException(InvitationDeliveryException exception) {
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE", exception.getMessage(),
@@ -40,6 +45,7 @@ public class GlobalExceptionHandler {
     // Erro de conexão com o banco
     @ExceptionHandler(SQLException.class)
     public ResponseEntity<ApiError> handleSqlException(SQLException exception) {
+        logger.error("Database connection error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE",
                 "Database service is temporarily unavailable", null);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
@@ -48,6 +54,7 @@ public class GlobalExceptionHandler {
     // Dados duplicados ou relacionados de forma inválida
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrityViolationException(DataIntegrityViolationException exception) {
+        logger.error("Database constraint violation while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 409, "CONFLICT",
                 "The operation violates an existing data constraint", null);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
@@ -63,6 +70,7 @@ public class GlobalExceptionHandler {
     // Outro erro ao acessar o banco
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiError> handleDataAccessException(DataAccessException exception) {
+        logger.error("Database access error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "Unable to process the request due to a database error", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -80,6 +88,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleCepNotFoundException(CepNotFoundException exception) {
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 404, "NOT_FOUND", exception.getMessage(), null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(CepLookupUnavailableException.class)
+    public ResponseEntity<ApiError> handleCepLookupUnavailableException(CepLookupUnavailableException exception) {
+        var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 503, "SERVICE_UNAVAILABLE",
+                exception.getMessage(), null);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
     }
 
     // Dados que entram em conflito com outro cadastro
@@ -164,6 +179,7 @@ public class GlobalExceptionHandler {
     // Erro inesperado durante a execução
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiError> handleRuntimeException(RuntimeException exception) {
+        logger.error("Unexpected runtime error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "An unexpected internal error occurred", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -172,6 +188,7 @@ public class GlobalExceptionHandler {
     // Captura qualquer exceção restante
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleException(Exception exception) {
+        logger.error("Unexpected error while processing request", exception);
         var error = new ApiError(LocalDateTime.now(ZoneOffset.UTC), 500, "INTERNAL_SERVER_ERROR",
                 "An unexpected internal error occurred", null);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

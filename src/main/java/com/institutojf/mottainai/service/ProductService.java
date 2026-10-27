@@ -8,6 +8,7 @@ import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.mapper.ProductMapper;
 import com.institutojf.mottainai.model.AppUser;
+import com.institutojf.mottainai.model.Company;
 import com.institutojf.mottainai.model.Product;
 import com.institutojf.mottainai.model.ProductCategory;
 import com.institutojf.mottainai.model.TaxProfile;
@@ -17,10 +18,12 @@ import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.AuditLogRepository;
 import com.institutojf.mottainai.repository.SupplierProductRepository;
 import com.institutojf.mottainai.repository.TaxProfileRepository;
+import com.institutojf.mottainai.security.InventoryAccess;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,12 +54,17 @@ public class ProductService {
 
     private final StaffUserLookup staffUserLookup;
 
+    private final InventoryAccess inventoryAccess;
+
     @Transactional
-    public ProductResponse create(CreateProductRequest request) {
-        if (productRepository.existsByBarcode(request.barcode())) {
+    public ProductResponse create(CreateProductRequest request, Authentication authentication) {
+        AppUser actor = inventoryAccess.currentUser(authentication);
+        Company company = actor.getEmployee().getStore().getCompany();
+        if (productRepository.existsByCompany_IdAndBarcode(company.getId(), request.barcode())) {
             throw new ConflictException("Product barcode already exists");
         }
         Product product = new Product();
+        product.setCompany(company);
         product.setBarcode(request.barcode());
         product.setActive(true);
         applyProductFields(request.categoryId(), request.taxProfileId(), request.ncm(), request.cest(), request.name(), request.description(), request.brand(), request.unitMeasure(), request.weight(), product);

@@ -25,7 +25,7 @@ public class UserProfileService {
 
     @Transactional(readOnly = true)
     public UserResponse me(String email) {
-        return toResponse(findUser(email));
+        return toOwnProfileResponse(findUser(email));
     }
 
     @Transactional(readOnly = true)
@@ -56,6 +56,15 @@ public class UserProfileService {
         Employee employee = user.getEmployee();
         return new UserResponse(user.getId(), privateDataService.name(employee),
                 privateDataService.cpfMasked(employee), privateDataService.email(employee),
+                privateDataService.phone(employee), employee.getRole().getName(),
+                user.getActive(), employee.getStore().getId());
+    }
+
+    private UserResponse toOwnProfileResponse(AppUser user) {
+        Employee employee = user.getEmployee();
+        String formattedCpf = privateDataService.cpf(employee).replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
+        return new UserResponse(user.getId(), privateDataService.name(employee),
+                formattedCpf, privateDataService.email(employee),
                 privateDataService.phone(employee), employee.getRole().getName(),
                 user.getActive(), employee.getStore().getId());
     }

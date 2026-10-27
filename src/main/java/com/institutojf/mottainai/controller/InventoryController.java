@@ -9,7 +9,6 @@ import com.institutojf.mottainai.dto.response.InventoryResponse;
 import com.institutojf.mottainai.service.InventoryMovementService;
 import com.institutojf.mottainai.service.InventoryService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +51,7 @@ public class InventoryController implements InventoryControllerApi {
 
     @Override
     @PostMapping
-    public ResponseEntity<InventoryResponse> create(@Valid @RequestBody CreateInventoryRequest request, Authentication authentication) {
+    public ResponseEntity<InventoryResponse> create(@RequestBody CreateInventoryRequest request, Authentication authentication) {
         InventoryResponse inventory = inventoryService.create(request, authentication);
         if (inventory.reactivated()) {
             return ResponseEntity.ok(inventory);
@@ -62,7 +61,7 @@ public class InventoryController implements InventoryControllerApi {
 
     @Override
     @PutMapping("/{id}")
-    public ResponseEntity<InventoryResponse> update(@PathVariable Integer id, @Valid @RequestBody UpdateInventoryRequest request, Authentication authentication) {
+    public ResponseEntity<InventoryResponse> update(@PathVariable Integer id, @RequestBody UpdateInventoryRequest request, Authentication authentication) {
         return ResponseEntity.ok(inventoryService.update(id, request, authentication));
     }
 
@@ -81,7 +80,7 @@ public class InventoryController implements InventoryControllerApi {
 
     @Override
     @GetMapping("/expiring")
-    public ResponseEntity<List<InventoryResponse>> findExpiring(@RequestParam(required = false) Integer storeId, @RequestParam(defaultValue = "30") @Min(0) int days, Authentication authentication) {
+    public ResponseEntity<List<InventoryResponse>> findExpiring(@RequestParam(required = false) Integer storeId, @RequestParam(defaultValue = "30") int days, Authentication authentication) {
         return ResponseEntity.ok(inventoryService.findExpiring(storeId, days, authentication));
     }
 
@@ -93,7 +92,7 @@ public class InventoryController implements InventoryControllerApi {
 
     @Override
     @PostMapping("/{id}/movements")
-    public ResponseEntity<InventoryMovementResponse> createMovement(@PathVariable Integer id, @Valid @RequestBody CreateInventoryMovementRequest request, @RequestHeader("Idempotency-Key") String idempotencyKey, Authentication authentication) {
+    public ResponseEntity<InventoryMovementResponse> createMovement(@PathVariable Integer id, @RequestBody CreateInventoryMovementRequest request, @RequestHeader("Idempotency-Key") String idempotencyKey, Authentication authentication) {
         InventoryMovementResponse movement = inventoryMovementService.create(id, request, idempotencyKey,
                 authentication);
         return ResponseEntity.created(URI.create("/api/v1/inventory/" + id + "/movements/" + movement.id()))

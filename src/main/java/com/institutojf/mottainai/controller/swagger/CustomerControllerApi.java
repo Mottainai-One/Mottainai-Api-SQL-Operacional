@@ -3,16 +3,13 @@ package com.institutojf.mottainai.controller.swagger;
 import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
 import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
-import com.institutojf.mottainai.dto.request.UpdateLoyaltyStatusRequest;
 import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
 import com.institutojf.mottainai.dto.response.LoyaltyAccountResponse;
-import com.institutojf.mottainai.dto.response.LoyaltyTransactionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.security.core.Authentication;
 
@@ -25,7 +22,7 @@ public interface CustomerControllerApi {
     })
     List<CustomerResponse> findAll();
 
-    @Operation(summary = "create")
+    @Operation(summary = "create", description = "Customer address is optional. When supplied, CEP automatically fills street, neighborhood, city and state through BrasilAPI; number and complement remain manual.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Successful response")
     })
@@ -37,7 +34,7 @@ public interface CustomerControllerApi {
     })
     CustomerResponse find(Integer id, Authentication authentication);
 
-    @Operation(summary = "update")
+    @Operation(summary = "update", description = "When an address is supplied, its CEP is looked up through BrasilAPI. Number and complement remain manual.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
@@ -73,22 +70,10 @@ public interface CustomerControllerApi {
     })
     void removeGeofence(Integer id, Integer geofenceId, Authentication authentication);
 
-    @Operation(summary = "updateLoyaltyStatus")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful response")
-    })
-    LoyaltyAccountResponse updateLoyaltyStatus(Integer id, UpdateLoyaltyStatusRequest request, Authentication authentication);
-
     @Operation(summary = "loyalty")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
     LoyaltyAccountResponse loyalty(Integer id, Authentication authentication);
-
-    @Operation(summary = "loyaltyTransactions")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful response")
-    })
-    List<LoyaltyTransactionResponse> loyaltyTransactions(Integer id, LocalDateTime from, LocalDateTime to, Authentication authentication);
 
 }
