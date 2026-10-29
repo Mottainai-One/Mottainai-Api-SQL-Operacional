@@ -1,7 +1,5 @@
 package com.institutojf.mottainai.controller.swagger;
 
-import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
-import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
 import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
@@ -21,12 +19,6 @@ public interface CustomerControllerApi {
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
     List<CustomerResponse> findAll();
-
-    @Operation(summary = "create", description = "Customer address is optional. When supplied, CEP automatically fills street, neighborhood, city and state through BrasilAPI; number and complement remain manual.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Successful response")
-    })
-    CustomerResponse create(CreateCustomerRequest request);
 
     @Operation(summary = "find")
     @ApiResponses({
@@ -57,18 +49,6 @@ public interface CustomerControllerApi {
             @ApiResponse(responseCode = "200", description = "Successful response")
     })
     List<CustomerGeofenceResponse> geofences(Integer id, Authentication authentication);
-
-    @Operation(summary = "addGeofence")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Successful response")
-    })
-    CustomerGeofenceResponse addGeofence(Integer id, CreateCustomerGeofenceRequest request, Authentication authentication);
-
-    @Operation(summary = "removeGeofence")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Successful response")
-    })
-    void removeGeofence(Integer id, Integer geofenceId, Authentication authentication);
 
     @Operation(summary = "loyalty")
     @ApiResponses({

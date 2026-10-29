@@ -1,6 +1,6 @@
 # API para o aplicativo Cliente
 
-Todas as rotas abaixo usam `/api/v1`. Envie `Authorization: Bearer <firebaseIdToken>` nas rotas `/client/**` e `/customer-catalog/**`. A API valida o token Firebase com o mesmo projeto configurado no backend; o UID é obtido do token e não deve ser enviado pelo app como identidade. Não é necessário incluir um papel `CUSTOMER` no token. As rotas legadas `/customers/**` continuam usando a autenticação própria da API descrita na seção Conta.
+Todas as rotas abaixo usam `/api/v1`. Envie `Authorization: Bearer <firebaseIdToken>` nas rotas `/client/**` e `/customer-catalog/**`. A API valida o token Firebase com o mesmo projeto configurado no backend; o UID é obtido do token e não deve ser enviado pelo app como identidade. Não é necessário incluir um papel `CUSTOMER` no token.
 
 ## Conta
 
@@ -35,10 +35,6 @@ A API retorna `201` com o perfil e seu `id`; também cria a conta de pontos com 
 ```
 
 O retorno é `200` com o perfil atualizado. Se ainda não houver perfil SQL vinculado ao UID, a API retorna `404`.
-
-### Autenticação SQL legada
-
-`POST /customers` cria conta e retorna `201`, sem autenticar. `fullName`, `cpf` (11 dígitos), `email` e `password` (mínimo 8 caracteres) são obrigatórios; `phone`, `birthDate`, `marketingConsent` e `address` são opcionais no contrato atual. Quando `address` for enviado, seus campos obrigatórios devem estar completos, inclusive CEP de 8 dígitos sem hífen. `POST /customers/auth/login` recebe `{ "email": "cliente@exemplo.com", "password": "Senha@123" }` e retorna `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600 }`. Depois, `GET /customers/auth/profile` retorna o perfil com `id` para consultas de pontos. Não há refresh token de cliente: ao receber `401`, encerre a sessão e solicite novo login.
 
 ## Lojas
 

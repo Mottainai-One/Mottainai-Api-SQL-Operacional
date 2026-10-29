@@ -24,8 +24,7 @@ and expiry and derives the UID from its verified subject.
 Set `FIREBASE_PROJECT_ID` to the Firebase project's Project ID. The API uses
 Google's published signing keys; do not put service-account credentials or
 private keys in the client or repository. The operational API does not provide
-password recovery. Customer account recovery belongs to the separate customer
-API.
+password recovery. The customer recovery routes have been retired from this API.
 
 The staff AES-256-GCM storage and exact SQL expectations are in
 [STAFF_AES_GCM_SCHEMA_CONTRACT.md](STAFF_AES_GCM_SCHEMA_CONTRACT.md).
