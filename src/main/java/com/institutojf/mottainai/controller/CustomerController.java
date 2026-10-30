@@ -1,8 +1,6 @@
 package com.institutojf.mottainai.controller;
 
 import com.institutojf.mottainai.controller.swagger.CustomerControllerApi;
-import com.institutojf.mottainai.dto.request.CreateCustomerGeofenceRequest;
-import com.institutojf.mottainai.dto.request.CreateCustomerRequest;
 import com.institutojf.mottainai.dto.request.UpdateCustomerRequest;
 
 import com.institutojf.mottainai.dto.response.CustomerGeofenceResponse;
@@ -52,13 +50,6 @@ public class CustomerController implements CustomerControllerApi {
     }
 
     @Override
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public CustomerResponse create(@Valid @RequestBody CreateCustomerRequest request) {
-        return customerService.create(request);
-    }
-
-    @Override
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRATOR','MANAGER','CUSTOMER')")
     public CustomerResponse find(@PathVariable Integer id, Authentication authentication) {
@@ -104,24 +95,6 @@ public class CustomerController implements CustomerControllerApi {
     public List<CustomerGeofenceResponse> geofences(@PathVariable Integer id, Authentication authentication) {
         customerAccess.checkAccess(authentication, id);
         return customerService.geofences(id);
-    }
-
-    @Override
-    @PostMapping("/{id}/geofences")
-    @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public CustomerGeofenceResponse addGeofence(@PathVariable Integer id, @Valid @RequestBody CreateCustomerGeofenceRequest request, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        return customerService.addGeofence(id, request);
-    }
-
-    @Override
-    @DeleteMapping("/{id}/geofences/{geofenceId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public void removeGeofence(@PathVariable Integer id, @PathVariable Integer geofenceId, Authentication authentication) {
-        customerAccess.checkAccess(authentication, id);
-        customerService.removeGeofence(id, geofenceId);
     }
 
     @Override

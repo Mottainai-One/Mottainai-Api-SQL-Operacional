@@ -1,10 +1,8 @@
 package com.institutojf.mottainai.security;
 
-import com.institutojf.mottainai.controller.CustomerAuthenticationController;
 import com.institutojf.mottainai.controller.CustomerController;
 import com.institutojf.mottainai.controller.CustomerProfileController;
 import com.institutojf.mottainai.dto.response.CustomerResponse;
-import com.institutojf.mottainai.dto.response.CustomerTokenResponse;
 import com.institutojf.mottainai.dto.request.UpdateFirebaseCustomerProfileRequest;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import com.institutojf.mottainai.repository.CustomerAuthRepository;
@@ -39,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-@WebMvcTest({ CustomerController.class, CustomerAuthenticationController.class, CustomerProfileController.class })
+@WebMvcTest({ CustomerController.class, CustomerProfileController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class })
 @TestPropertySource(properties = { "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60" })
@@ -68,16 +66,6 @@ class CustomerSecurityTest {
 
     @MockitoBean
     CustomerAuthRepository customerAuthRepository;
-
-    @Test
-    @DisplayName("Should permit customer login without authentication")
-    void permitsCustomerLoginWithoutAuthentication() throws Exception {
-        when(customerAuthenticationService.login(any())).thenReturn(new CustomerTokenResponse("token", "Bearer", 3600));
-        mockMvc
-            .perform(post("/api/v1/customers/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"ana@example.com\",\"password\":\"Strong1!\"}"))
-            .andExpect(status().isOk());
-    }
 
     @Test
     @DisplayName("Should block customer from administrative customer list")
@@ -129,29 +117,6 @@ class CustomerSecurityTest {
 
         mockMvc.perform(get("/api/v1/customers/8").with(user("ana@example.com").roles("CUSTOMER"))).andExpect(status().isForbidden());
         verifyNoInteractions(customerService);
-    }
-
-    @Test
-    @DisplayName("Should require authentication for SQL customer profile")
-    void requiresAuthenticationForCustomerProfile() throws Exception {
-        mockMvc.perform(get("/api/v1/customers/auth/profile")).andExpect(status().isUnauthorized());
-        verifyNoInteractions(customerAuthenticationService);
-    }
-
-    @Test
-    @DisplayName("Should reject staff access to SQL customer profile")
-    void rejectsStaffCustomerProfile() throws Exception {
-        mockMvc.perform(get("/api/v1/customers/auth/profile").with(user("admin@example.com").roles("ADMINISTRATOR")))
-            .andExpect(status().isForbidden());
-        verifyNoInteractions(customerAuthenticationService);
-    }
-
-    @Test
-    @DisplayName("Should allow SQL customer to read its own profile")
-    void permitsCustomerProfile() throws Exception {
-        mockMvc.perform(get("/api/v1/customers/auth/profile").with(user("ana@example.com").roles("CUSTOMER")))
-            .andExpect(status().isOk());
-        verify(customerAuthenticationService).profile(any());
     }
 
     @Test
