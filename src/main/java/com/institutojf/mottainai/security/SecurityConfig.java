@@ -117,14 +117,10 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/v1/customers/auth/profile")
-                .hasRole("CUSTOMER")
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh",
                         "/api/v1/auth/password-reset", "/api/v1/auth/password-reset/validate",
-                        "/api/v1/customers/auth/**", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+                        "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
                         "/actuator/health")
-                .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/customers")
                 .permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/cep/**")
                 .permitAll()

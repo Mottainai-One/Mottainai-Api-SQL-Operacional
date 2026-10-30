@@ -31,13 +31,6 @@ public class CustomerProfileController implements CustomerProfileControllerApi {
     private final CustomerService customerService;
 
     @Override
-    @GetMapping("/customers/auth/profile")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public CustomerResponse profile(Authentication authentication) {
-        return authenticationService.profile(authentication);
-    }
-
-    @Override
     @GetMapping("/client/auth/profile")
     public CustomerResponse clientProfile(Authentication authentication) {
         return authenticationService.profile(authentication);

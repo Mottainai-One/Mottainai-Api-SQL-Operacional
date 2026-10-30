@@ -51,8 +51,7 @@ Firebase UID and lookup type `FIREBASE_UID`. Active accounts must have a
 Firebase UID. Pending invitations may have no UID. Invitation completion
 requires both the invitation token and a verified Firebase ID token; that
 verified subject is linked to the pending account before activation. The
-operational API does not expose password recovery. Customer password recovery
-is a separate customer-app flow.
+operational API does not expose password recovery. Customer password recovery routes have been retired from this API.
 
 ## Runtime key
 
