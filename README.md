@@ -17,7 +17,6 @@
 [![springdoc](https://img.shields.io/badge/springdoc--openapi-3.0.3-85EA2D?style=flat-square&logo=swagger&logoColor=black)](pom.xml)
 [![Docker](https://img.shields.io/badge/Docker-Temurin%2021%20JRE-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
 [![GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/status-depende%20do%20banco%20externo-orange?style=flat-square)](#11-status-riscos-e-limitações)
 
 <br/>
 
@@ -28,7 +27,7 @@
 [Segurança](#7-segurança) •
 [Configuração](#8-configuração) •
 [Executar](#9-como-executar) •
-[Riscos](#11-status-riscos-e-limitações)
+[Riscos](#11-segurança-e-operação)
 
 </div>
 
@@ -524,19 +523,7 @@ flowchart LR
 
 ---
 
-## 11. Status, riscos e limitações
-
-### Status
-
-| Item | Status |
-|---|:---:|
-| API operacional (36 controllers, 177 operações) | ![done](https://img.shields.io/badge/-implementado-success?style=flat-square) |
-| Login Firebase + JWT com sessão revogável | ![done](https://img.shields.io/badge/-implementado-success?style=flat-square) |
-| PII com AES-256-GCM / HMAC | ![done](https://img.shields.io/badge/-implementado-success?style=flat-square) |
-| Imagem Docker de QA | ![done](https://img.shields.io/badge/-build%20no%20CI-success?style=flat-square) |
-| Schema com tabelas `*_private_data` no instalador oficial | ![pending](https://img.shields.io/badge/-não%20confirmado-orange?style=flat-square) |
-| Separação das rotas de cliente em outro serviço | ![pending](https://img.shields.io/badge/-pendente-orange?style=flat-square) |
-| Publicação/deploy da imagem | ![pending](https://img.shields.io/badge/-não%20confirmado-lightgrey?style=flat-square) |
+## 11. Segurança e operação
 
 ### Riscos
 
