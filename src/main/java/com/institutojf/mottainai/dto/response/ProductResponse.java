@@ -18,6 +18,7 @@ public record ProductResponse(
         String unitMeasure,
         BigDecimal weight,
         Boolean active,
-        Integer version
+        Integer version,
+        String imageUrl
 ) {
 }

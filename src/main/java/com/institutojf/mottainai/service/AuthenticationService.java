@@ -105,7 +105,7 @@ public class AuthenticationService {
         appUserRepository.updateLastLogin(user.getId(), LocalDateTime.now(ZoneOffset.UTC));
         UUID sessionId = UUID.randomUUID();
         String refreshToken = jwtService.generateRefreshToken(currentAuthentication, sessionId,
-                jwtProperties.refreshExpirationDays());
+                jwtProperties.refreshExpirationDays(), user);
         staffSessionRepository.create(sessionId, user.getId(), tokenHashService.hash(refreshToken),
                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(jwtProperties.refreshExpirationDays()));
         return tokenResponse(currentAuthentication, user, sessionId, refreshToken);
@@ -129,7 +129,7 @@ public class AuthenticationService {
         UUID sessionId = sessionId(token);
         Authentication authentication = authenticationFor(user);
         String nextRefreshToken = jwtService.generateRefreshToken(authentication, sessionId,
-                jwtProperties.refreshExpirationDays());
+                jwtProperties.refreshExpirationDays(), user);
         if (!staffSessionRepository.rotate(sessionId, user.getId(), tokenHashService.hash(rawRefreshToken),
                 tokenHashService.hash(nextRefreshToken),
                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(jwtProperties.refreshExpirationDays()))) {
@@ -218,7 +218,7 @@ public class AuthenticationService {
     }
 
     private TokenResponse tokenResponse(Authentication authentication, AppUser user, UUID sessionId, String refreshToken) {
-        return new TokenResponse(jwtService.generateAccessToken(authentication, sessionId), refreshToken, "Bearer",
+        return new TokenResponse(jwtService.generateAccessToken(authentication, sessionId, user), refreshToken, "Bearer",
                 jwtProperties.expirationMinutes() * 60, jwtProperties.refreshExpirationDays() * 24 * 60 * 60);
     }
 

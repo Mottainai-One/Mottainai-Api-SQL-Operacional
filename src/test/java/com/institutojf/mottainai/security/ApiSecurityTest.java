@@ -16,8 +16,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,13 +37,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({ ApiSecurityTest.SecurityTestController.class, ApiSecurityTest.CatalogSecurityTestController.class,
+        ApiSecurityTest.InventoryCountSecurityTestController.class,
+        ApiSecurityTest.DamageSecurityTestController.class,
         EmployeeController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class,
-        ApiSecurityTest.CatalogSecurityTestController.class })
+        ApiSecurityTest.CatalogSecurityTestController.class, ApiSecurityTest.InventoryCountSecurityTestController.class,
+        ApiSecurityTest.DamageSecurityTestController.class })
 @TestPropertySource(properties = { "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60",
         "security.cors.allowed-origins=https://app.example" })
@@ -75,6 +81,43 @@ class ApiSecurityTest {
     @DisplayName("Should forbid write operation for operator")
     void shouldForbidWriteOperationForOperator() throws Exception {
         mockMvc.perform(post("/api/v1/security-probe").with(user("operator@mottainai.com").roles("OPERATOR"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should allow an operator to record store-scoped inventory counts")
+    void shouldAllowOperatorInventoryCountWrites() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isCreated());
+        mockMvc.perform(put("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isOk());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Should keep inventory count writes unavailable to interns")
+    void shouldForbidInternInventoryCountWrites() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory-counts/security-probe")
+                .with(user("intern@mottainai.com").roles("INTERN")))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should allow an operator to register a damage report")
+    void shouldAllowDamageReportForOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/damages").with(user("operator@mottainai.com").roles("OPERATOR")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("Should forbid an intern from registering a damage report")
+    void shouldForbidDamageReportForIntern() throws Exception {
+        mockMvc.perform(post("/api/v1/damages").with(user("intern@mottainai.com").roles("INTERN")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -181,6 +224,29 @@ class ApiSecurityTest {
         public String create() {
             return "created";
         }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/inventory-counts/security-probe")
+    static class InventoryCountSecurityTestController {
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() { return "created"; }
+
+        @PutMapping
+        public String update() { return "updated"; }
+
+        @DeleteMapping
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void delete() { }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/damages")
+    static class DamageSecurityTestController {
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() { return "created"; }
     }
 
 }

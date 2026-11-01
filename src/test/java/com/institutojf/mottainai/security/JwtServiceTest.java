@@ -1,5 +1,10 @@
 package com.institutojf.mottainai.security;
 
+import com.institutojf.mottainai.model.AppUser;
+import com.institutojf.mottainai.model.Company;
+import com.institutojf.mottainai.model.Employee;
+import com.institutojf.mottainai.model.EmployeeRole;
+import com.institutojf.mottainai.model.RetailStore;
 import com.institutojf.mottainai.repository.AppUserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JwtServiceTest {
 
@@ -51,9 +57,27 @@ class JwtServiceTest {
         AppUserRepository appUserRepository = mock(AppUserRepository.class);
         SecurityConfig securityConfig = new SecurityConfig(properties, appUserRepository);
         JwtService jwtService = new JwtService(securityConfig.jwtEncoder(), properties);
-        String tokenValue = jwtService.generateRefreshToken(new TestingAuthenticationToken("manager@mottainai.com", null, "ROLE_MANAGER"), UUID.randomUUID(), 7);
+        AppUser user = mock(AppUser.class);
+        Employee employee = mock(Employee.class);
+        RetailStore store = mock(RetailStore.class);
+        Company company = mock(Company.class);
+        EmployeeRole role = mock(EmployeeRole.class);
+        when(user.getId()).thenReturn(21);
+        when(user.getEmployee()).thenReturn(employee);
+        when(employee.getStore()).thenReturn(store);
+        when(employee.getRole()).thenReturn(role);
+        when(store.getId()).thenReturn(4);
+        when(store.getCompany()).thenReturn(company);
+        when(company.getId()).thenReturn(8);
+        when(role.getPermissionLevel()).thenReturn(80);
+        String tokenValue = jwtService.generateRefreshToken(
+                new TestingAuthenticationToken("manager@mottainai.com", null, "ROLE_MANAGER"),
+                UUID.randomUUID(), 7, user);
         Jwt token = securityConfig.jwtDecoder().decode(tokenValue);
         assertEquals("refresh", token.getClaimAsString("use"));
+        assertEquals(Long.valueOf(21), token.getClaim("usuario_id"));
+        assertEquals(Long.valueOf(8), token.getClaim("empresa_id"));
+        assertEquals("GERENTE", token.getClaimAsString("role"));
         assertTrue(token.getExpiresAt().isAfter(token.getIssuedAt()));
     }
 

@@ -19,6 +19,7 @@ public record CreateProductRequest(
         String description,
         @Size(max = 100) String brand,
         @NotBlank @Size(max = 20) String unitMeasure,
-        @DecimalMin(value = "0.000") @Digits(integer = 7, fraction = 3) BigDecimal weight
+        @DecimalMin(value = "0.000") @Digits(integer = 7, fraction = 3) BigDecimal weight,
+        @jakarta.validation.constraints.Pattern(regexp = "^https://res\\.cloudinary\\.com/[^/]+/image/upload/.{1,1900}$") String imageUrl
 ) {
 }

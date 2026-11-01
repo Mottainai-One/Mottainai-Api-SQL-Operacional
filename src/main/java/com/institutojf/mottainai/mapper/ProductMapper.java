@@ -14,7 +14,7 @@ public class ProductMapper {
         return new ProductResponse(product.getId(), product.getCompany().getId(), product.getCategory().getId(), product.getCategory().getName(),
                 product.getTaxProfile().getId(), product.getSku(), product.getBarcode(), product.getNcm(),
                 product.getCest(), product.getName(), product.getDescription(), product.getBrand(),
-                product.getUnitMeasure(), product.getWeight(), product.getActive(), product.getVersion());
+                product.getUnitMeasure(), product.getWeight(), product.getActive(), product.getVersion(), product.getImageUrl());
     }
 
 }

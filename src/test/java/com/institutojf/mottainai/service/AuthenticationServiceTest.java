@@ -88,8 +88,8 @@ class AuthenticationServiceTest {
                         List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"))));
         when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("Strong!Pass123", "bcrypt-hash")).thenReturn(true);
-        when(jwtService.generateRefreshToken(any(), any(UUID.class), eq(7L))).thenReturn("refresh-token");
-        when(jwtService.generateAccessToken(any(), any(UUID.class))).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(any(), any(UUID.class), eq(7L), any(AppUser.class))).thenReturn("refresh-token");
+        when(jwtService.generateAccessToken(any(), any(UUID.class), any(AppUser.class))).thenReturn("access-token");
         when(tokenHashService.hash("refresh-token")).thenReturn("refresh-hash");
 
         var response = service().login(new LoginRequest("signed-id-token", "Strong!Pass123"));
@@ -101,7 +101,7 @@ class AuthenticationServiceTest {
         verify(entityManager).refresh(user, LockModeType.PESSIMISTIC_WRITE);
         verify(jwtService).generateAccessToken(argThat(auth -> auth.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
-                .toList().equals(List.of("ROLE_ADMINISTRATOR", "ROLE_MANAGER"))), any(UUID.class));
+                .toList().equals(List.of("ROLE_ADMINISTRATOR", "ROLE_MANAGER"))), any(UUID.class), eq(user));
     }
 
     @Test
@@ -136,8 +136,8 @@ class AuthenticationServiceTest {
         when(refreshJwt.getClaimAsString("sid")).thenReturn(sessionId.toString());
         when(rlsContextService.bootstrapByFirebaseUid(uid)).thenReturn(true);
         when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
-        when(jwtService.generateRefreshToken(any(), eq(sessionId), eq(7L))).thenReturn("rotated-refresh-token");
-        when(jwtService.generateAccessToken(any(), eq(sessionId))).thenReturn("next-access-token");
+        when(jwtService.generateRefreshToken(any(), eq(sessionId), eq(7L), any(AppUser.class))).thenReturn("rotated-refresh-token");
+        when(jwtService.generateAccessToken(any(), eq(sessionId), any(AppUser.class))).thenReturn("next-access-token");
         when(tokenHashService.hash("old-refresh-token")).thenReturn("old-hash");
         when(tokenHashService.hash("rotated-refresh-token")).thenReturn("new-hash");
         when(staffSessionRepository.rotate(eq(sessionId), eq(user.getId()), eq("old-hash"), eq("new-hash"), any()))
@@ -162,7 +162,7 @@ class AuthenticationServiceTest {
         when(refreshJwt.getClaimAsString("sid")).thenReturn(sessionId.toString());
         when(rlsContextService.bootstrapByFirebaseUid(uid)).thenReturn(true);
         when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
-        when(jwtService.generateRefreshToken(any(), eq(sessionId), eq(7L))).thenReturn("new-refresh-token");
+        when(jwtService.generateRefreshToken(any(), eq(sessionId), eq(7L), any(AppUser.class))).thenReturn("new-refresh-token");
         when(tokenHashService.hash("old-refresh-token")).thenReturn("old-hash");
         when(tokenHashService.hash("new-refresh-token")).thenReturn("new-hash");
         when(staffSessionRepository.rotate(eq(sessionId), eq(user.getId()), eq("old-hash"), eq("new-hash"), any()))

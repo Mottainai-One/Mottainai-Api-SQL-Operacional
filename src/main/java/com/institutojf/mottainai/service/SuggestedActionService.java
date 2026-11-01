@@ -55,6 +55,13 @@ public class SuggestedActionService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<SuggestedActionResponse> getActionsByStore(Integer storeId, Authentication authentication) {
+        inventoryAccess.checkStoreAccess(authentication, storeId);
+        return suggestedActionRepository.findByAlert_Store_IdOrderByGeneratedAtDesc(storeId)
+                .stream().map(SuggestedActionResponse::fromEntity).toList();
+    }
+
     @Transactional
     public SuggestedActionResponse createForAlert(Integer alertId, CreateSuggestedActionRequest request, Authentication authentication) {
         Alert alert = alertRepository.findById(alertId)

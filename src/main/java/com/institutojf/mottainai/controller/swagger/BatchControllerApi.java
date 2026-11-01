@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -21,7 +22,7 @@ public interface BatchControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Batches found", content = @Content(schema = @Schema(implementation = BatchResponse.class)))
     })
-    ResponseEntity<List<BatchResponse>> findAll(Authentication authentication);
+    ResponseEntity<List<BatchResponse>> findAll(@RequestParam(required = false) Integer storeId, Authentication authentication);
 
     @Operation(summary = "Find a batch by ID")
     @ApiResponses({
