@@ -9,6 +9,7 @@ import com.institutojf.mottainai.mapper.BatchMapper;
 import com.institutojf.mottainai.model.Batch;
 import com.institutojf.mottainai.model.Product;
 import com.institutojf.mottainai.repository.BatchRepository;
+import com.institutojf.mottainai.repository.InventoryRepository;
 import com.institutojf.mottainai.repository.ProductRepository;
 import com.institutojf.mottainai.security.InventoryAccess;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,8 @@ public class BatchService {
     private final BatchMapper batchMapper;
 
     private final InventoryAccess inventoryAccess;
+
+    private final InventoryRepository inventoryRepository;
 
     @Transactional
     public BatchResponse create(CreateBatchRequest request, Authentication authentication) {
@@ -56,9 +59,15 @@ public class BatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<BatchResponse> findAll(Authentication authentication) {
-        inventoryAccess.requireAdministrator(authentication);
-        return batchRepository.findAllByActiveTrueAndDeletedAtIsNull().stream().map(batchMapper::toResponse).toList();
+    public List<BatchResponse> findAll(Integer requestedStoreId, Authentication authentication) {
+        Integer storeId = inventoryAccess.resolveStoreId(authentication, requestedStoreId);
+        return inventoryRepository.findAllByStore_IdAndDeletedAtIsNull(storeId).stream()
+            .map(inventory -> inventory.getBatch())
+            .filter(batch -> Boolean.TRUE.equals(batch.getActive()) && batch.getDeletedAt() == null)
+            .collect(java.util.stream.Collectors.toMap(Batch::getId, batch -> batch, (first, ignored) -> first))
+            .values().stream()
+            .map(batchMapper::toResponse)
+            .toList();
     }
 
     @Transactional(readOnly = true)

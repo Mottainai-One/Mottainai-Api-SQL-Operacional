@@ -5,6 +5,7 @@ import com.institutojf.mottainai.mapper.BatchMapper;
 import com.institutojf.mottainai.model.Batch;
 import com.institutojf.mottainai.model.Product;
 import com.institutojf.mottainai.repository.BatchRepository;
+import com.institutojf.mottainai.repository.InventoryRepository;
 import com.institutojf.mottainai.repository.ProductRepository;
 import com.institutojf.mottainai.security.InventoryAccess;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +42,9 @@ class BatchServiceTest {
     private InventoryAccess inventoryAccess;
 
     @Mock
+    private InventoryRepository inventoryRepository;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -56,6 +61,16 @@ class BatchServiceTest {
         assertFalse(batch.getActive());
         verify(inventoryAccess).requireAdministrator(authentication);
         verify(batchRepository).save(batch);
+    }
+
+    @Test
+    @DisplayName("Should list only batches available at the caller store")
+    void shouldListBatchesAvailableAtCallerStore() {
+        when(inventoryAccess.resolveStoreId(authentication, null)).thenReturn(1);
+        when(inventoryRepository.findAllByStore_IdAndDeletedAtIsNull(1)).thenReturn(List.of());
+        org.junit.jupiter.api.Assertions.assertTrue(batchService.findAll(null, authentication).isEmpty());
+        verify(inventoryAccess).resolveStoreId(authentication, null);
+        verify(inventoryRepository).findAllByStore_IdAndDeletedAtIsNull(1);
     }
 
     private Batch batch() {

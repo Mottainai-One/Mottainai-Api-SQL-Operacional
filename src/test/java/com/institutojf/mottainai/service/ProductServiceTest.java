@@ -123,10 +123,12 @@ class ProductServiceTest {
         when(categoryRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(category()));
         when(taxProfileRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(taxProfile()));
         when(productRepository.save(product)).thenReturn(product);
-        productService.update(1, new UpdateProductRequest(1, 1, "12345678", null, "Brown rice", "Whole grain", "Mottainai", "KG", new BigDecimal("1.25"), true, 1));
+        String imageUrl = "https://res.cloudinary.com/demo/image/upload/v1/rice.jpg";
+        productService.update(1, new UpdateProductRequest(1, 1, "12345678", null, "Brown rice", "Whole grain", "Mottainai", "KG", new BigDecimal("1.25"), true, 1, imageUrl));
         assertEquals("12345678", product.getNcm());
         assertEquals("Brown rice", product.getName());
         assertTrue(product.getActive());
+        assertEquals(imageUrl, product.getImageUrl());
     }
 
     @Test
@@ -153,7 +155,7 @@ class ProductServiceTest {
     }
 
     private CreateProductRequest createRequest() {
-        return new CreateProductRequest(1, 1, "123", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE);
+        return new CreateProductRequest(1, 1, "123", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, null);
     }
 
     private Product product(Integer id, boolean active) {
@@ -206,7 +208,8 @@ class ProductServiceTest {
     }
 
     private ProductResponse response() {
-        return new ProductResponse(1, 1, 1, "Food", 1, "RIC-001", "123", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1);
+        return new ProductResponse(1, 1, 1, "Food", 1, "RIC-001", "123", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1, null);
     }
 
 }
+

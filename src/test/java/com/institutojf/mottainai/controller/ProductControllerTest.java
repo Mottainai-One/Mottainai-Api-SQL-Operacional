@@ -140,11 +140,12 @@ class ProductControllerTest {
     }
 
     private CreateProductRequest request() {
-        return new CreateProductRequest(1, 1, "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE);
+        return new CreateProductRequest(1, 1, "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, null);
     }
 
     private ProductResponse response() {
-        return new ProductResponse(1, 1, 1, "Food", 1, "RIC-001", "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1);
+        return new ProductResponse(1, 1, 1, "Food", 1, "RIC-001", "7891234567890", "12345678", null, "Rice", null, null, "KG", BigDecimal.ONE, true, 1, null);
     }
 
 }
+

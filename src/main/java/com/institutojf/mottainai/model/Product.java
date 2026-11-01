@@ -72,6 +72,9 @@ public class Product {
     @Column(precision = 10, scale = 3)
     private BigDecimal weight;
 
+    @Column(name = "image_url", length = 2048)
+    private String imageUrl;
+
     @Column(nullable = false)
     private Boolean active = true;
 

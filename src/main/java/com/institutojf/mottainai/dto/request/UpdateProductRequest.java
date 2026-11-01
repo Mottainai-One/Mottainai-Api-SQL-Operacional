@@ -20,6 +20,7 @@ public record UpdateProductRequest(
         @NotBlank @Size(max = 20) String unitMeasure,
         @DecimalMin(value = "0.000") @Digits(integer = 7, fraction = 3) BigDecimal weight,
         @NotNull Boolean active,
-        @NotNull Integer version
+        @NotNull Integer version,
+        @jakarta.validation.constraints.Pattern(regexp = "^https://res\\.cloudinary\\.com/[^/]+/image/upload/.{1,1900}$") String imageUrl
 ) {
 }

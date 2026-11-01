@@ -68,6 +68,7 @@ public class ProductService {
         product.setBarcode(request.barcode());
         product.setActive(true);
         applyProductFields(request.categoryId(), request.taxProfileId(), request.ncm(), request.cest(), request.name(), request.description(), request.brand(), request.unitMeasure(), request.weight(), product);
+        product.setImageUrl(request.imageUrl());
         Product savedProduct = productRepository.saveAndFlush(product);
         entityManager.refresh(savedProduct);
         return productMapper.toResponse(savedProduct);
@@ -101,6 +102,7 @@ public class ProductService {
         }
         applyProductFields(request.categoryId(), request.taxProfileId(), request.ncm(), request.cest(), request.name(), request.description(), request.brand(), request.unitMeasure(), request.weight(), product);
         product.setActive(request.active());
+        product.setImageUrl(request.imageUrl());
         return productMapper.toResponse(productRepository.save(product));
     }
 
