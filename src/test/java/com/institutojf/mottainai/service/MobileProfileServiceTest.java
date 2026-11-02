@@ -25,14 +25,14 @@ class MobileProfileServiceTest {
         AppUser user = account(level);
         when(users.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("verified-uid"))
                 .thenReturn(Optional.of(user));
-        when(privateData.name(user.getEmployee())).thenReturn("Pessoa de teste");
-        when(privateData.email(user.getEmployee())).thenReturn("teste@example.com");
-        var result = new MobileProfileService(users, privateData).me("verified-uid");
+        var result = new MobileProfileService(users).me("verified-uid");
         assertEquals("verified-uid", result.firebaseUid());
         assertEquals(expectedRole, result.role());
         assertEquals(5, result.storeId());
         assertEquals(3, result.companyId());
-        assertEquals("Pessoa de teste", result.name());
+        assertNull(result.name());
+        assertNull(result.email());
+        verifyNoInteractions(privateData);
         assertFalse(result.permissions().isEmpty());
     }
 
@@ -40,7 +40,7 @@ class MobileProfileServiceTest {
     void refusesUnknownUidWithoutCreatingOrLinkingAccount() {
         when(users.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("unknown"))
                 .thenReturn(Optional.empty());
-        assertThrows(AccessDeniedException.class, () -> new MobileProfileService(users, privateData).me("unknown"));
+        assertThrows(AccessDeniedException.class, () -> new MobileProfileService(users).me("unknown"));
         verifyNoInteractions(privateData);
         verify(users, never()).save(any());
     }
@@ -64,7 +64,7 @@ class MobileProfileServiceTest {
             when(users.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("verified-uid"))
                     .thenReturn(Optional.of(user));
             assertThrows(AccessDeniedException.class,
-                    () -> new MobileProfileService(users, privateData).me("verified-uid"));
+                    () -> new MobileProfileService(users).me("verified-uid"));
         }
         verifyNoInteractions(privateData);
     }
@@ -75,11 +75,11 @@ class MobileProfileServiceTest {
         when(users.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("verified-uid"))
                 .thenReturn(Optional.of(user));
         assertThrows(AccessDeniedException.class,
-                () -> new MobileProfileService(users, privateData).me("verified-uid"));
+                () -> new MobileProfileService(users).me("verified-uid"));
         user.getEmployee().getRole().setPermissionLevel(100);
         user.setFirebaseUid("another-uid");
         assertThrows(AccessDeniedException.class,
-                () -> new MobileProfileService(users, privateData).me("verified-uid"));
+                () -> new MobileProfileService(users).me("verified-uid"));
         verifyNoInteractions(privateData);
     }
 

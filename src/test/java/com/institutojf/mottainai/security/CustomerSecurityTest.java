@@ -43,6 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60" })
 class CustomerSecurityTest {
 
+    @MockitoBean
+    com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff;
+
     @Autowired
     MockMvc mockMvc;
 

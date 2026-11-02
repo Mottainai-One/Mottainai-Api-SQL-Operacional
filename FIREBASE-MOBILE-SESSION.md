@@ -1,25 +1,46 @@
-# Login Firebase do mobile operacional
+# Firebase no mobile operacional
 
-O mobile autentica e-mail e senha diretamente no Firebase. Em seguida envia somente `firebaseIdToken` por JSON para `POST /api/v1/auth/firebase`, sem senha e sem Authorization de uma sessão anterior.
+## Fluxo implementado
 
-A API verifica o token Firebase, resolve o UID vinculado ao funcionário e exige usuário, funcionário, papel, loja e empresa ativos. Emite os tokens operacional e de renovação pelo mecanismo de sessões existente. Não cria vínculos automaticamente por e-mail e não concede acesso a uma loja arbitrária.
+1. O Android autentica e-mail/senha no Firebase Authentication.
+2. Cada requisição à API SQL envia `Authorization: Bearer <Firebase ID Token>`.
+3. Spring valida assinatura RS256, issuer, audience e validade do projeto configurado em `security.firebase.project-id` (`FIREBASE_PROJECT_ID`).
+4. Somente depois da validação, a API inicializa o contexto SQL com `fn_bootstrap_staff_context(uid, 'FIREBASE_UID')` e consulta a atribuição ativa.
+5. Autoridades vêm do banco a cada requisição, nunca de custom claims Firebase ou parâmetros do cliente.
+6. `GET /api/v1/auth/mobile-profile` retorna vínculo, papel, loja, empresa e permissões. `name` e `email` são nulos: o app exibe nome/e-mail da identidade Firebase, sem descriptografar dados pessoais para entrar.
 
-O endpoint existente `/api/v1/auth/login` permanece disponível com seu contrato anterior. Nenhuma migration foi adicionada. O verificador atual valida assinatura e claims do ID token; não consulta revogação em tempo real no Firebase Admin SDK.
+Usuário, funcionário, cargo, loja e empresa precisam estar ativos e não excluídos. Níveis suportados: 100=dono, 80=gerente, 60/40=estoquista. Níveis legados 1/2/3 não são convertidos pelo nome do cargo. UID sem vínculo é recusado, sem criar ou vincular contas por e-mail.
 
-Após a troca, o mobile consulta `GET /api/v1/auth/mobile-profile` com o access token operacional. A resposta inclui `id`, `firebaseUid`, `name`, `email`, `role`, `active`, `storeId`, `companyId` e `permissions`. Não recebe UID, loja ou empresa para escolher a conta. Parâmetros enviados pelo cliente não substituem o principal autenticado.
+O Android obtém tokens atuais pelo SDK Firebase e tenta uma única renovação forçada após 401. Restauração da sessão na tela de login revalida o perfil SQL. Sair remove a sessão local e chama signOut do Firebase. A API mantém validação criptográfica por JWKS, sem consulta de revogação Firebase em tempo real; desativação SQL é conferida em cada requisição.
 
-O papel do mobile é estável (`dono`, `gerente`, `estoquista`), derivado de `employee_role.permission_level`: 100, 80 e 60/40, respectivamente. O nome do cargo no banco é apenas um rótulo e pode mudar sem quebrar o login. Outros níveis não recebem sessão ou perfil mobile. A lista `permissions` mantém as autoridades da API; a autorização de cada operação continua no servidor. O mesmo mapeamento é usado pelo claim de papel da IA, inclusive para Supervisor (60), sem mudar suas autoridades de API.
+## Compatibilidade
 
-Cadastros legados com níveis como 1, 2 ou 3 não são convertidos automaticamente pelo nome do cargo. A equipe responsável pelo cadastro deve atribuir um papel operacional com nível aprovado. Um cargo chamado Estoquista não concede acesso por si só.
+O login legado e suas sessões/refresh permanecem disponíveis. `POST /auth/firebase` é uma ponte opcional para IA/Redis, que ainda exigem JWT operacional com claims próprios; não é pré-requisito para entrar no app ou consultar a API SQL. O app usa clientes separados e não envia token Firebase a esses serviços. Rotas legadas de logout e senha SQL não recebem token Firebase. O perfil legado `/auth/profile` continua com seu contrato anterior.
 
-Não é necessário criar documentos em `users` no Firestore, configurar custom claims de cargo/loja no Firebase nem sincronizar senhas com `app_user.password_hash`. O UID validado deve corresponder a `app_user.firebase_uid`, vinculado a um `employee` com `retail_store`, `company` e `employee_role` ativos e não excluídos. A verificação de contexto usa `mottainai.fn_bootstrap_staff_context(uid, 'FIREBASE_UID')`, preservando RLS. Resultado falso não identifica sozinho qual elo está ausente ou inativo.
+Sem migration nova: `app_user.firebase_uid` já existe. Não sincronizar senha Firebase com password_hash. Não criar documentos Firestore ou custom claims para autorizar acesso SQL.
 
-O vínculo é um dado de cadastro, não uma migration. A equipe responsável deve identificar a conta/funcionário corretos e usar o fluxo administrativo de cadastro/ativação existente. Não se deve associar o UID a uma loja arbitrária, reutilizar uma conta de outra pessoa, contornar RLS ou vincular automaticamente por e-mail. Nenhuma conta ou permissão do banco real foi alterada nesta PR.
+## Preparação do banco
 
-Implantação: usar a role de aplicação prevista pelo banco e suas credenciais próprias. Uma conexão administrativa com `BYPASSRLS` não valida o isolamento por RLS. Verificar a role efetiva e a configuração de criptografia dos dados de funcionário no ambiente de destino, sem publicar chaves ou credenciais.
+O script `scripts/link-mobile-firebase-users.sql` contém os três UIDs informados e IDs obrigatórios em branco. A responsável pelo banco deve identificar ou provisionar as contas autorizadas, preencher user_id, employee_id, store_id, company_id e role_id, e conferir o vínculo antes de executar. O script não cria funcionários fictícios, não troca lojas e não modifica dados pessoais criptografados nem senhas.
 
-É necessário publicar a API e instalar o APK atualizado juntos. A compilação do código não significa que o contêiner em execução já foi atualizado. Uma conta sem vínculo operacional válido continuará sendo recusada, mesmo autenticada no Firebase. O contrato legado `/auth/profile` permanece inalterado.
+Executar com psql, conexão privada e credencial administrativa aprovada. O script recusa IDs ausentes, vínculos conflitantes, registros excluídos, cargo incompatível e excesso do plano. Ele ativa somente os três usuários/funcionários escolhidos, atribui os cargos aprovados e revoga sessões SQL anteriores. Todas as alterações são transacionais. A execução padrão termina em ROLLBACK; revisar os resultados e substituir apenas a última instrução por COMMIT para gravar. Em caso de erro, reconectar ou executar ROLLBACK antes de tentar novamente.
 
-Escopo: autenticação e perfil operacional. Esta API não possui integração com Firestore. Fluxos legados de aprovações PDV e cadastro FCM no aplicativo ainda precisam de contratos próprios para substituir seu acesso direto ao Firestore; esta PR não cria tabelas nem inventa esses contratos.
+Exemplo (credenciais por configuração privada do PostgreSQL, sem senha no comando):
 
-Validação automatizada: `AuthenticationServiceTest`, `AuthenticationControllerTest`, `MobileProfileServiceTest`, `ApiSecurityTest` e testes existentes de JWT/RLS. O CI executa `mvn -B -ntp clean verify -Dsurefire.runOrder=random`. No aplicativo, testar uma conta vinculada e ativa sem custom claims de cargo/loja, senha Firebase incorreta, conta sem vínculo e restauração de sessão.
+```powershell
+psql --service=mottainai-operacional --file=scripts/link-mobile-firebase-users.sql
+```
+
+Não é seguro deduzir um ID SQL de `loja04`. Uma conta não existente precisa ser provisionada pelo administrador antes deste vínculo. Usar credencial própria da aplicação com a política RLS prevista pelo banco; conexão BYPASSRLS não comprova isolamento.
+
+## Como validar
+
+Publicar API e instalar APK atualizados. Com USB autorizado: `adb reverse tcp:8080 tcp:8080`; no app de debug `apiBaseUrl=http://127.0.0.1:8080/`.
+
+Testar as três contas: login, perfil com UID e loja corretos, produtos, inventário, acesso negado a operações de outro papel, troca de contas e restauração. Sem token, token inválido ou UID sem vínculo: 401. Papel sem autorização para a operação: 403. Uma conta SQL desativada deve ser recusada mesmo com token Firebase ainda válido.
+
+Testes automatizados cobrem provider/bearer, autorização SQL, conta desativada/sem vínculo, perfil sem criptografia e compatibilidade com sessões antigas. Os testes HTTP usam decoder controlado; não comprovam disponibilidade dos servidores Firebase ou vínculo no banco real.
+
+O vínculo no banco real não foi executado. Permanecem fora desta mudança: funções SQL de auditoria/cadastro ausentes no ambiente, contrato de dados pessoais da equipe, migração Firestore dos fluxos PDV/FCM, configuração dos serviços de IA/Redis e validação offline completa.
+
+Referências: https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html e https://firebase.google.com/docs/auth/admin/verify-id-tokens

@@ -112,7 +112,8 @@ public class SecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain staffSecurityFilterChain(HttpSecurity http, RlsContextService rlsContextService,
-            CustomerAuthRepository customerAuthRepository) throws Exception {
+            CustomerAuthRepository customerAuthRepository,
+            com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -152,8 +153,8 @@ public class SecurityConfig {
                 .hasAnyRole("ADMINISTRATOR", "MANAGER")
                 .anyRequest()
                 .authenticated())
-            .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver()))
-            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties),
+            .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver(firebaseStaff)))
+            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties, firebaseProperties),
                     BearerTokenAuthenticationFilter.class);
         return http.build();
     }
@@ -219,9 +220,16 @@ public class SecurityConfig {
         return authenticationConverter;
     }
 
-    private JwtIssuerAuthenticationManagerResolver staffAuthenticationManagerResolver() {
+    private JwtIssuerAuthenticationManagerResolver staffAuthenticationManagerResolver(
+            com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff) {
         Map<String, AuthenticationManager> managers = new HashMap<>();
         managers.put(jwtProperties.issuer(), jwtAuthenticationManager(jwtDecoder(), jwtAuthenticationConverter()));
+        if (firebaseProperties.projectId() != null && !firebaseProperties.projectId().isBlank()) {
+            JwtAuthenticationProvider firebaseProvider = new JwtAuthenticationProvider(firebaseJwtDecoder());
+            firebaseProvider.setJwtAuthenticationConverter(firebaseStaff::authenticate);
+            managers.put("https://securetoken.google.com/" + firebaseProperties.projectId(),
+                    new ProviderManager(firebaseProvider));
+        }
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }
 

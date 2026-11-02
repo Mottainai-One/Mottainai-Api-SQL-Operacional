@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MobileProfileService {
     private final AppUserRepository appUserRepository;
-    private final EmployeePrivateDataService privateDataService;
 
     @Transactional(readOnly = true)
     public MobileProfileResponse me(String firebaseUid) {
@@ -33,8 +32,9 @@ public class MobileProfileService {
         Integer level = employee.getRole().getPermissionLevel();
         String role = StaffRoleAuthorities.mobileRoleForPermissionLevel(level);
         if (role == null) throw new AccessDeniedException("Employee role is not supported by the mobile app");
-        return new MobileProfileResponse(user.getId(), user.getFirebaseUid(), privateDataService.name(employee),
-                privateDataService.email(employee), role, true, employee.getStore().getId(),
+        // Identity display comes from Firebase. Authorization never needs encrypted PII.
+        return new MobileProfileResponse(user.getId(), user.getFirebaseUid(), null,
+                null, role, true, employee.getStore().getId(),
                 employee.getStore().getCompany().getId(), StaffRoleAuthorities.forPermissionLevel(level));
     }
 }

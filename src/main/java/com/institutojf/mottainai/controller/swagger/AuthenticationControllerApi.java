@@ -22,8 +22,8 @@ import org.springframework.security.core.Authentication;
 @Tag(name = "Authentication", description = "API for Firebase-backed operational authentication and invitations")
 public interface AuthenticationControllerApi {
 
-    @Operation(summary = "Exchange a Firebase ID token for a database-authorized mobile session",
-            description = "No operational password or Firebase custom claims are required. The UID must already have an active staff assignment in the operational database.")
+    @Operation(summary = "Exchange Firebase identity for an optional integration session",
+            description = "Used by integrations requiring the operational JWT. Mobile SQL routes also accept Firebase ID tokens directly. No SQL password or custom claims are required; an active SQL assignment is mandatory.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Session created"),
             @ApiResponse(responseCode = "400", description = "Missing or invalid request"),
@@ -31,11 +31,11 @@ public interface AuthenticationControllerApi {
     })
     ResponseEntity<TokenResponse> firebaseSession(FirebaseSessionRequest request);
 
-    @Operation(summary = "Get database-owned identity, company, store and canonical mobile role",
-            description = "Uses the operational access token. Firebase custom claims and Firestore are not consulted. Existing /profile responses remain unchanged.")
+    @Operation(summary = "Get database-owned assignment, company, store and canonical mobile role",
+            description = "Accepts a verified Firebase ID token or a valid operational access token. Name/email are null: mobile uses Firebase for display identity. No encrypted PII or custom role/store claims are needed. Existing /profile responses remain unchanged.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Database profile returned"),
-            @ApiResponse(responseCode = "401", description = "Valid operational session required"),
+            @ApiResponse(responseCode = "401", description = "Valid identity and active operational assignment required"),
             @ApiResponse(responseCode = "403", description = "Unsupported mobile role or unavailable assignment")
     })
     ResponseEntity<MobileProfileResponse> mobileProfile(Authentication authentication);

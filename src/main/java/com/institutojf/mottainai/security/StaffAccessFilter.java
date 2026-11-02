@@ -24,12 +24,20 @@ public class StaffAccessFilter extends OncePerRequestFilter {
     private final CustomerAuthRepository customerAuthRepository;
 
     private final String apiIssuer;
+    private final String firebaseIssuer;
 
     public StaffAccessFilter(RlsContextService rlsContextService, CustomerAuthRepository customerAuthRepository,
             JwtProperties jwtProperties) {
+        this(rlsContextService, customerAuthRepository, jwtProperties, new FirebaseProperties(""));
+    }
+
+    public StaffAccessFilter(RlsContextService rlsContextService, CustomerAuthRepository customerAuthRepository,
+            JwtProperties jwtProperties, FirebaseProperties firebaseProperties) {
         this.rlsContextService = rlsContextService;
         this.customerAuthRepository = customerAuthRepository;
         this.apiIssuer = jwtProperties.issuer();
+        this.firebaseIssuer = firebaseProperties.projectId() == null || firebaseProperties.projectId().isBlank()
+                ? null : "https://securetoken.google.com/" + firebaseProperties.projectId();
     }
 
     @Override
@@ -45,6 +53,15 @@ public class StaffAccessFilter extends OncePerRequestFilter {
             boolean apiToken = token.getToken().getIssuer() != null
                     && apiIssuer.equals(token.getToken().getIssuer().toString());
             if (!apiToken) {
+                // The Firebase provider has already resolved current SQL authorities, ignoring custom claims.
+                if (token.getToken().getIssuer() != null && firebaseIssuer != null
+                        && firebaseIssuer.equals(token.getToken().getIssuer().toString())
+                        && !authorities.isEmpty() && !customerOnly
+                        && !Set.of("/api/v1/auth/logout", "/api/v1/auth/password")
+                            .contains(request.getRequestURI())) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_FORBIDDEN);
                 return;
