@@ -1,12 +1,14 @@
-# Mottainai-Backend
+# Mottainai API SQL Operacional
 
-[![CI](https://github.com/Mottainai-One/Mottainai-Spring-Api-SQL/actions/workflows/ci.yml/badge.svg)](https://github.com/Mottainai-One/Mottainai-Spring-Api-SQL/actions/workflows/ci.yml)
+[![CI](https://github.com/Mottainai-One/Mottainai-Api-SQL-Operacional/actions/workflows/ci.yml/badge.svg)](https://github.com/Mottainai-One/Mottainai-Spring-Api-SQL/actions/workflows/ci.yml)
 
 REST API for the Mottainai ecosystem, built with Spring Boot to manage business rules, authentication, inventory operations, predictive workflows, and integrations with databases, mobile applications, AI services, and BI platforms.
 
 ## CI/CD
 
 Este repositório possui um pipeline de CI/CD que executa as seguintes verificações:
+
+O workflow `.github/workflows/ci.yml` executa em pull requests destinados a `main`/`master` e em pushes nessas branches.
 
 | Job | Descrição | Bloqueante |
 |-----|-----------|------------|
