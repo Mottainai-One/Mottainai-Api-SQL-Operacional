@@ -23,14 +23,16 @@ import static org.mockito.Mockito.when;
 
 class JwtServiceAiClaimsTest {
 
-    @Test
-    void accessTokenCarriesVerifiedOperationalIdentityForIa() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {40, 60})
+    void accessTokenCarriesVerifiedOperationalIdentityForIa(int permissionLevel) {
         JwtEncoder encoder = mock(JwtEncoder.class);
         when(encoder.encode(any(JwtEncoderParameters.class))).thenReturn(
                 Jwt.withTokenValue("signed-token").header("alg", "HS256").claim("sub", "test").build());
-        AppUser user = user(41, 7, 3, 40);
+        AppUser user = user(41, 7, 3, permissionLevel);
         var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                "firebase-uid-41", null, List.of(new SimpleGrantedAuthority("ROLE_OPERATOR")));
+                "firebase-uid-41", null, List.of(new SimpleGrantedAuthority(
+                        permissionLevel == 60 ? "ROLE_SUPERVISOR" : "ROLE_OPERATOR")));
         JwtService service = new JwtService(encoder, new JwtProperties("unused", "https://mottainai.local", 60, 7));
 
         service.generateAccessToken(authentication, UUID.randomUUID(), user);

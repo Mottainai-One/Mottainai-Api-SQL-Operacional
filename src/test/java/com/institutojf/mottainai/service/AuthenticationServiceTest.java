@@ -105,6 +105,65 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void firebaseSessionDoesNotAuthenticateOrCompareSqlPasswords() {
+        String uid = "verified-mobile-uid";
+        AppUser user = activeUser(uid, "Operator");
+        when(firebaseTokenVerifier.verifiedUid("signed-id-token")).thenReturn(uid);
+        when(rlsContextService.bootstrapByFirebaseUid(uid)).thenReturn(true);
+        when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid)).thenReturn(Optional.of(user));
+        when(jwtService.generateRefreshToken(any(), any(UUID.class), eq(7L), any(AppUser.class))).thenReturn("refresh-token");
+        when(jwtService.generateAccessToken(any(), any(UUID.class), any(AppUser.class))).thenReturn("access-token");
+        when(tokenHashService.hash("refresh-token")).thenReturn("refresh-hash");
+
+        var response = service().firebaseSession(new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("signed-id-token"));
+
+        assertEquals("access-token", response.accessToken());
+        assertEquals("refresh-token", response.refreshToken());
+        org.mockito.Mockito.verifyNoInteractions(authenticationManager, passwordEncoder);
+        verify(staffSessionRepository).create(any(), eq(user.getId()), eq("refresh-hash"), any());
+    }
+
+    @Test
+    void firebaseSessionRejectsUnverifiedTokenBeforeDatabaseLookup() {
+        when(firebaseTokenVerifier.verifiedUid("invalid")).thenThrow(new BadCredentialsException("Invalid token"));
+        assertThrows(BadCredentialsException.class, () -> service().firebaseSession(
+                new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("invalid")));
+        org.mockito.Mockito.verifyNoInteractions(rlsContextService, appUserRepository, jwtService, staffSessionRepository);
+    }
+
+    @Test
+    void firebaseSessionRejectsMissingOrInactiveAssignment() {
+        when(firebaseTokenVerifier.verifiedUid("signed-id-token")).thenReturn("unlinked-uid");
+        when(rlsContextService.bootstrapByFirebaseUid("unlinked-uid")).thenReturn(false);
+        assertThrows(BadCredentialsException.class, () -> service().firebaseSession(
+                new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("signed-id-token")));
+        org.mockito.Mockito.verifyNoInteractions(appUserRepository, jwtService, staffSessionRepository);
+    }
+
+    @Test
+    void firebaseSessionRejectsUserDisabledAfterLock() {
+        AppUser user = activeUser("uid");
+        user.setActive(false);
+        when(firebaseTokenVerifier.verifiedUid("signed-id-token")).thenReturn("uid");
+        when(rlsContextService.bootstrapByFirebaseUid("uid")).thenReturn(true);
+        when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("uid")).thenReturn(Optional.of(user));
+        assertThrows(BadCredentialsException.class, () -> service().firebaseSession(
+                new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("signed-id-token")));
+        org.mockito.Mockito.verifyNoInteractions(jwtService, staffSessionRepository);
+    }
+
+    @Test
+    void firebaseSessionRechecksAssignmentBeforeIssuingTokens() {
+        when(firebaseTokenVerifier.verifiedUid("signed-id-token")).thenReturn("uid");
+        when(rlsContextService.bootstrapByFirebaseUid("uid")).thenReturn(true, false);
+        when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull("uid"))
+                .thenReturn(Optional.of(activeUser("uid")));
+        assertThrows(BadCredentialsException.class, () -> service().firebaseSession(
+                new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("signed-id-token")));
+        org.mockito.Mockito.verifyNoInteractions(jwtService, staffSessionRepository);
+    }
+
+    @Test
     void loginRejectsPasswordThatNoLongerMatchesAfterLockingUser() {
         String uid = "verified-firebase-uid";
         AppUser user = activeUser(uid);
@@ -281,6 +340,21 @@ class AuthenticationServiceTest {
 
     private static AppUser activeUser(String uid) {
         return activeUser(uid, "Administrator");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {20, 3, -1})
+    void firebaseSessionRejectsUnsupportedOrLegacyPermissionLevels(int level) {
+        String uid = "verified-mobile-uid";
+        AppUser user = activeUser(uid, "Operator");
+        user.getEmployee().getRole().setPermissionLevel(level);
+        when(firebaseTokenVerifier.verifiedUid("verified-token")).thenReturn(uid);
+        when(rlsContextService.bootstrapByFirebaseUid(uid)).thenReturn(true);
+        when(appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid))
+                .thenReturn(Optional.of(user));
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+                () -> service().firebaseSession(new com.institutojf.mottainai.dto.request.FirebaseSessionRequest("verified-token")));
+        org.mockito.Mockito.verifyNoInteractions(jwtService, staffSessionRepository, authenticationManager, passwordEncoder);
     }
 
     private static AppUser activeUser(String uid, String roleName) {

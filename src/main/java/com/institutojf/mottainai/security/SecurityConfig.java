@@ -117,7 +117,7 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh",
+                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/firebase", "/api/v1/auth/refresh",
                         "/api/v1/auth/password-reset", "/api/v1/auth/password-reset/validate",
                         "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
                         "/actuator/health")

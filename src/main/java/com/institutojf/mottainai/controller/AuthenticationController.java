@@ -3,6 +3,9 @@ package com.institutojf.mottainai.controller;
 import com.institutojf.mottainai.controller.swagger.AuthenticationControllerApi;
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
+import com.institutojf.mottainai.dto.request.FirebaseSessionRequest;
+import com.institutojf.mottainai.dto.response.MobileProfileResponse;
+import com.institutojf.mottainai.service.MobileProfileService;
 import com.institutojf.mottainai.dto.request.RefreshTokenRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
 import com.institutojf.mottainai.dto.response.TokenResponse;
@@ -33,6 +36,21 @@ public class AuthenticationController implements AuthenticationControllerApi {
     private final AuthenticationService authenticationService;
 
     private final UserProfileService userProfileService;
+
+    private final MobileProfileService mobileProfileService;
+
+    @Override
+    @PostMapping("/firebase")
+    public ResponseEntity<TokenResponse> firebaseSession(
+            @Valid @RequestBody FirebaseSessionRequest request) {
+        return ResponseEntity.ok(authenticationService.firebaseSession(request));
+    }
+
+    @Override
+    @GetMapping("/mobile-profile")
+    public ResponseEntity<MobileProfileResponse> mobileProfile(Authentication authentication) {
+        return ResponseEntity.ok(mobileProfileService.me(authentication.getName()));
+    }
 
     @Override
     @GetMapping("/profile")

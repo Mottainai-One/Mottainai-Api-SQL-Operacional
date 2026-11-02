@@ -2,6 +2,8 @@ package com.institutojf.mottainai.controller.swagger;
 
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
+import com.institutojf.mottainai.dto.request.FirebaseSessionRequest;
+import com.institutojf.mottainai.dto.response.MobileProfileResponse;
 import com.institutojf.mottainai.dto.request.RefreshTokenRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
 import com.institutojf.mottainai.dto.response.TokenResponse;
@@ -19,6 +21,24 @@ import org.springframework.security.core.Authentication;
 
 @Tag(name = "Authentication", description = "API for Firebase-backed operational authentication and invitations")
 public interface AuthenticationControllerApi {
+
+    @Operation(summary = "Exchange a Firebase ID token for a database-authorized mobile session",
+            description = "No operational password or Firebase custom claims are required. The UID must already have an active staff assignment in the operational database.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Session created"),
+            @ApiResponse(responseCode = "400", description = "Missing or invalid request"),
+            @ApiResponse(responseCode = "401", description = "Invalid Firebase token or unavailable staff assignment")
+    })
+    ResponseEntity<TokenResponse> firebaseSession(FirebaseSessionRequest request);
+
+    @Operation(summary = "Get database-owned identity, company, store and canonical mobile role",
+            description = "Uses the operational access token. Firebase custom claims and Firestore are not consulted. Existing /profile responses remain unchanged.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Database profile returned"),
+            @ApiResponse(responseCode = "401", description = "Valid operational session required"),
+            @ApiResponse(responseCode = "403", description = "Unsupported mobile role or unavailable assignment")
+    })
+    ResponseEntity<MobileProfileResponse> mobileProfile(Authentication authentication);
 
     @Operation(summary = "Get the authenticated employee profile")
     @ApiResponses({

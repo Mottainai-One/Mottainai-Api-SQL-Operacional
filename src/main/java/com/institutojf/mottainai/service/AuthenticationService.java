@@ -3,6 +3,7 @@ package com.institutojf.mottainai.service;
 import com.institutojf.mottainai.config.PasswordProperties;
 import com.institutojf.mottainai.dto.request.ChangePasswordRequest;
 import com.institutojf.mottainai.dto.request.LoginRequest;
+import com.institutojf.mottainai.dto.request.FirebaseSessionRequest;
 import com.institutojf.mottainai.dto.request.ResetPasswordRequest;
 import com.institutojf.mottainai.dto.response.TokenResponse;
 import com.institutojf.mottainai.exception.BusinessException;
@@ -101,6 +102,33 @@ public class AuthenticationService {
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid Firebase identity or password");
         }
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public TokenResponse firebaseSession(FirebaseSessionRequest request) {
+        String uid = firebaseTokenVerifier.verifiedUid(request.firebaseIdToken());
+        if (!rlsContextService.bootstrapByFirebaseUid(uid)) {
+            throw new BadCredentialsException("Operational account is unavailable");
+        }
+        AppUser user = appUserRepository.findByFirebaseUidAndActiveTrueAndDeletedAtIsNull(uid)
+                .orElseThrow(() -> new BadCredentialsException("Operational account is unavailable"));
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+        Employee employee = user.getEmployee();
+        if (employee == null) throw new BadCredentialsException("Operational account is unavailable");
+        entityManager.refresh(employee, LockModeType.PESSIMISTIC_WRITE);
+        if (!uid.equals(user.getFirebaseUid()) || !Boolean.TRUE.equals(user.getActive()) || user.getDeletedAt() != null
+                || !Boolean.TRUE.equals(employee.getActive()) || employee.getDeletedAt() != null
+                || employee.getRole() == null || !Boolean.TRUE.equals(employee.getRole().getActive())
+                || employee.getRole().getDeletedAt() != null
+                || StaffRoleAuthorities.mobileRoleForPermissionLevel(employee.getRole().getPermissionLevel()) == null
+                || !rlsContextService.bootstrapByFirebaseUid(uid)) {
+            throw new BadCredentialsException("Operational account is unavailable");
+        }
+        return issueTokens(user);
+    }
+
+    private TokenResponse issueTokens(AppUser user) {
         Authentication currentAuthentication = authenticationFor(user);
         appUserRepository.updateLastLogin(user.getId(), LocalDateTime.now(ZoneOffset.UTC));
         UUID sessionId = UUID.randomUUID();

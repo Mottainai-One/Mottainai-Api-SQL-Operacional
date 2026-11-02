@@ -44,6 +44,25 @@ class AuthenticationControllerTest {
     @Mock
     private UserProfileService userProfileService;
 
+    @Mock
+    private com.institutojf.mottainai.service.MobileProfileService mobileProfileService;
+
+    @Test
+    void mobileProfileUsesAuthenticatedUidInsteadOfRequestParameters() throws Exception {
+        when(mobileProfileService.me("verified-uid")).thenReturn(
+                new com.institutojf.mottainai.dto.response.MobileProfileResponse(7, "verified-uid", "Pessoa", "test@example.com",
+                        "gerente", true, 5, 3, java.util.List.of("MANAGER")));
+        mockMvc.perform(get("/api/v1/auth/mobile-profile")
+                .principal(new UsernamePasswordAuthenticationToken("verified-uid", null))
+                .param("firebaseUid", "attacker-uid").param("storeId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firebaseUid").value("verified-uid"))
+                .andExpect(jsonPath("$.storeId").value(5))
+                .andExpect(jsonPath("$.companyId").value(3))
+                .andExpect(jsonPath("$.role").value("gerente"));
+        verify(mobileProfileService).me("verified-uid");
+    }
+
     @InjectMocks
     private AuthenticationController authenticationController;
 
@@ -100,6 +119,24 @@ class AuthenticationControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.refreshToken").value("new-refresh"));
         verify(authenticationService).refresh("old-refresh");
+    }
+
+    @Test
+    void mobileSessionAcceptsOnlyFirebaseIdToken() throws Exception {
+        when(authenticationService.firebaseSession(any()))
+                .thenReturn(new TokenResponse("access", "refresh", "Bearer", 3600, 604800));
+        mockMvc.perform(post("/api/v1/auth/firebase").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firebaseIdToken\":\"signed-id-token\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("access"));
+        verify(authenticationService).firebaseSession(any());
+        org.mockito.Mockito.verify(authenticationService, org.mockito.Mockito.never()).login(any());
+    }
+
+    @Test
+    void mobileSessionRejectsMissingToken() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/firebase").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(authenticationService);
     }
 
     @Test

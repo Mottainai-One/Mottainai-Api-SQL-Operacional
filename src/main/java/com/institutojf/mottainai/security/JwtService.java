@@ -79,14 +79,8 @@ public class JwtService {
     }
 
     private String aiRole(AppUser user) {
-        Integer permissionLevel = user.getEmployee().getRole().getPermissionLevel();
-        if (permissionLevel == null) return null;
-        return switch (permissionLevel) {
-            case 100 -> "DONO";
-            case 80 -> "GERENTE";
-            case 40 -> "ESTOQUISTA";
-            default -> null;
-        };
+        String role = StaffRoleAuthorities.mobileRoleForPermissionLevel(user.getEmployee().getRole().getPermissionLevel());
+        return role == null ? null : role.toUpperCase(java.util.Locale.ROOT);
     }
 
 }
