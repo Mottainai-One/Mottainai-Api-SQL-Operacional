@@ -31,8 +31,11 @@ public class AuditLogRepository {
 
     public void record(String table, String operation, String recordId, Integer actorUserId, Object oldData,
             Object newData) {
-        jdbcTemplate.queryForObject(INSERT_AUDIT_LOG, Boolean.class, table, operation, recordId, actorUserId,
+        Boolean recorded = jdbcTemplate.queryForObject(INSERT_AUDIT_LOG, Boolean.class, table, operation, recordId, actorUserId,
                 toJson(oldData), toJson(newData));
+        if (!Boolean.TRUE.equals(recorded)) {
+            throw new IllegalStateException("Required audit record was not persisted");
+        }
     }
 
     public List<AuditLogResponse> findByEmployeeIdAndOperationDateBetween(Integer employeeId, LocalDateTime from,

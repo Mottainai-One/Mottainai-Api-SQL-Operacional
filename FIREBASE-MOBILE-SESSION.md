@@ -1,46 +1,33 @@
-# Firebase no mobile operacional
+# Integração do mobile operacional — 02/11/2026
 
-## Fluxo implementado
+O Android autentica e-mail/senha no Firebase Authentication. A API SQL valida o ID Token (assinatura RS256, projeto/audience, emissor e validade) e resolve UID, usuário, funcionário, permissões, loja e empresa no PostgreSQL. Claims de cargo/loja do Firebase não autorizam operações. Não há Firestore nem Firebase Cloud Messaging neste fluxo.
 
-1. O Android autentica e-mail/senha no Firebase Authentication.
-2. Cada requisição à API SQL envia `Authorization: Bearer <Firebase ID Token>`.
-3. Spring valida assinatura RS256, issuer, audience e validade do projeto configurado em `security.firebase.project-id` (`FIREBASE_PROJECT_ID`).
-4. Somente depois da validação, a API inicializa o contexto SQL com `fn_bootstrap_staff_context(uid, 'FIREBASE_UID')` e consulta a atribuição ativa.
-5. Autoridades vêm do banco a cada requisição, nunca de custom claims Firebase ou parâmetros do cliente.
-6. `GET /api/v1/auth/mobile-profile` retorna vínculo, papel, loja, empresa e permissões. `name` e `email` são nulos: o app exibe nome/e-mail da identidade Firebase, sem descriptografar dados pessoais para entrar.
+`GET /api/v1/auth/mobile-profile` permite entrar sem descriptografar PII. O perfil contém o vínculo SQL; nome/e-mail apresentados pelo app vêm da identidade Firebase. Token sem vínculo ativo é recusado. Níveis suportados: 100 dono, 80 gerente, 60/40 estoquista; cargos legados 1/2/3 precisam de atribuição aprovada, sem conversão por nome.
 
-Usuário, funcionário, cargo, loja e empresa precisam estar ativos e não excluídos. Níveis suportados: 100=dono, 80=gerente, 60/40=estoquista. Níveis legados 1/2/3 não são convertidos pelo nome do cargo. UID sem vínculo é recusado, sem criar ou vincular contas por e-mail.
+Cada requisição SQL usa o ID Token atual. O app tenta uma renovação forçada após 401. A ponte `POST /api/v1/auth/firebase` produz uma sessão operacional real para integrações IA/Redis, sem receber senha Firebase. Não armazenar essa senha no PostgreSQL. O login SQL legado continua compatível. A validação criptográfica do Firebase não faz consulta de revogação em tempo real.
 
-O Android obtém tokens atuais pelo SDK Firebase e tenta uma única renovação forçada após 401. Restauração da sessão na tela de login revalida o perfil SQL. Sair remove a sessão local e chama signOut do Firebase. A API mantém validação criptográfica por JWKS, sem consulta de revogação Firebase em tempo real; desativação SQL é conferida em cada requisição.
+## Notificações
 
-## Compatibilidade
+A caixa interna consulta a API Redis, inclusive contagem de não lidas e marcação de leitura. Não há registro de dispositivo, push de sistema, permissão de notificações nem necessidade de chave FCM. A API Redis exige o JWT operacional da ponte, não o ID Token Firebase. Em ambiente USB, as portas locais usadas são SQL 8080, IA 8000, Mongo API 8082 e Redis API 18082.
 
-O login legado e suas sessões/refresh permanecem disponíveis. `POST /auth/firebase` é uma ponte opcional para IA/Redis, que ainda exigem JWT operacional com claims próprios; não é pré-requisito para entrar no app ou consultar a API SQL. O app usa clientes separados e não envia token Firebase a esses serviços. Rotas legadas de logout e senha SQL não recebem token Firebase. O perfil legado `/auth/profile` continua com seu contrato anterior.
+## Aprovações do PDV
 
-Sem migration nova: `app_user.firebase_uid` já existe. Não sincronizar senha Firebase com password_hash. Não criar documentos Firestore ou custom claims para autorizar acesso SQL.
+`GET /api/v1/pos-approvals?status=PENDING&limit=50` consulta a fila da loja atribuída ao gerente/dono no SQL. `POST /api/v1/pos-approvals/{uuid}/decision` recebe `decision` (APPROVED/REJECTED) e `observation` opcional, até 250 caracteres. Não recebe ator nem loja escolhidos pelo cliente.
 
-## Preparação do banco
+A decisão bloqueia o registro em transação, exige PENDING, confere a venda da própria loja e, em cancelamentos, exige solicitação de cancelamento correspondente. Usa a procedure existente do banco; cancelamento aprovado termina EXECUTED. Outros pedidos aprovados permanecem APPROVED para execução pelo fluxo específico do PDV. Não representar aprovação de desconto/devolução como execução financeira.
 
-O script `scripts/link-mobile-firebase-users.sql` contém os três UIDs informados e IDs obrigatórios em branco. A responsável pelo banco deve identificar ou provisionar as contas autorizadas, preencher user_id, employee_id, store_id, company_id e role_id, e conferir o vínculo antes de executar. O script não cria funcionários fictícios, não troca lojas e não modifica dados pessoais criptografados nem senhas.
+Auditoria usa o `app_user.user_id` autenticado. Erro ou retorno FALSE/NULL da função de auditoria aborta a decisão. Ausência de tabela/função é indisponibilidade, nunca uma aprovação simulada. As decisões reais não foram executadas contra vendas da nuvem durante os testes automatizados.
 
-Executar com psql, conexão privada e credencial administrativa aprovada. O script recusa IDs ausentes, vínculos conflitantes, registros excluídos, cargo incompatível e excesso do plano. Ele ativa somente os três usuários/funcionários escolhidos, atribui os cargos aprovados e revoga sessões SQL anteriores. Todas as alterações são transacionais. A execução padrão termina em ROLLBACK; revisar os resultados e substituir apenas a última instrução por COMMIT para gravar. Em caso de erro, reconectar ou executar ROLLBACK antes de tentar novamente.
+## Banco: entrega para a responsável
 
-Exemplo (credenciais por configuração privada do PostgreSQL, sem senha no comando):
+Consultar `scripts/check-operational-mobile-readiness.sql`. É um roteiro de requisitos com consultas somente leitura, sem DDL/grants/atualizações. As duas funções ausentes na conferência são `fn_api_create_staff_user(integer,text,boolean,boolean)` e `fn_api_record_audit(text,mottainai.audit_operation,text,integer,jsonb,jsonb)`.
 
-```powershell
-psql --service=mottainai-operacional --file=scripts/link-mobile-firebase-users.sql
-```
+As contas técnicas 505/506 já foram inseridas e vinculadas à loja/empresa 4; não reprovisionar. Os INSERTs completos e credenciais de teste permanecem no ambiente privado, fora desta PR. Não publicar senhas, chaves, envelopes de PII ou arquivos de configuração. As contas antigas não foram alteradas.
 
-Não é seguro deduzir um ID SQL de `loja04`. Uma conta não existente precisa ser provisionada pelo administrador antes deste vínculo. Usar credencial própria da aplicação com a política RLS prevista pelo banco; conexão BYPASSRLS não comprova isolamento.
+A API local ainda usa credencial administrativa BYPASSRLS. A responsável deve fornecer/configurar identidade de serviço com privilégios mínimos e validar o contexto RLS. A configuração de criptografia histórica também precisa ser compatível para fluxos que leem PII da equipe; autenticar não exige descriptografar esses campos.
 
-## Como validar
+## Validação
 
-Publicar API e instalar APK atualizados. Com USB autorizado: `adb reverse tcp:8080 tcp:8080`; no app de debug `apiBaseUrl=http://127.0.0.1:8080/`.
+A suíte final da API executou 339 testes, sem falhas/erros; 4 testes de integração ficaram ignorados por suas condições de ambiente. Cobertura adicionada: assinatura/issuer/audience/expiração Firebase, limite de espera das chaves, autorização e isolamento do PDV, decisão repetida e confirmação obrigatória de auditoria. Esses resultados não substituem testes ponta a ponta do ambiente e do APK.
 
-Testar as três contas: login, perfil com UID e loja corretos, produtos, inventário, acesso negado a operações de outro papel, troca de contas e restauração. Sem token, token inválido ou UID sem vínculo: 401. Papel sem autorização para a operação: 403. Uma conta SQL desativada deve ser recusada mesmo com token Firebase ainda válido.
-
-Testes automatizados cobrem provider/bearer, autorização SQL, conta desativada/sem vínculo, perfil sem criptografia e compatibilidade com sessões antigas. Os testes HTTP usam decoder controlado; não comprovam disponibilidade dos servidores Firebase ou vínculo no banco real.
-
-O vínculo no banco real não foi executado. Permanecem fora desta mudança: funções SQL de auditoria/cadastro ausentes no ambiente, contrato de dados pessoais da equipe, migração Firestore dos fluxos PDV/FCM, configuração dos serviços de IA/Redis e validação offline completa.
-
-Referências: https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html e https://firebase.google.com/docs/auth/admin/verify-id-tokens
+O roteiro local `test-real-operational-api.py --integrations` autentica as contas técnicas e testa consultas reais, sem executar decisões do PDV. O relatório local registra falhas reais; não tratar sucesso unitário como integração disponível. O APK ainda depende de compilação/instalação atualizadas; houve falha do Gradle no Windows ao estabelecer conexão de loopback.

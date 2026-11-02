@@ -44,7 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest({ ApiSecurityTest.SecurityTestController.class, ApiSecurityTest.CatalogSecurityTestController.class,
         ApiSecurityTest.InventoryCountSecurityTestController.class,
         ApiSecurityTest.DamageSecurityTestController.class,
-        EmployeeController.class, com.institutojf.mottainai.controller.AuthenticationController.class })
+        EmployeeController.class, com.institutojf.mottainai.controller.AuthenticationController.class,
+        com.institutojf.mottainai.controller.PosApprovalController.class })
 @Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class,
         ApiSecurityTest.CatalogSecurityTestController.class, ApiSecurityTest.InventoryCountSecurityTestController.class,
         ApiSecurityTest.DamageSecurityTestController.class })
@@ -52,6 +53,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60",
         "security.cors.allowed-origins=https://app.example", "security.firebase.project-id=mottainai-operacional" })
 class ApiSecurityTest {
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.PosApprovalService posApprovals;
+
+    @Test
+    void posApprovalsRequireManagerEvenForReadAndCannotBeWrittenByOperator() throws Exception {
+        mockMvc.perform(get("/api/v1/pos-approvals")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/pos-approvals").with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/pos-approvals/00000000-0000-0000-0000-000000000001/decision")
+                .with(user("operator").roles("OPERATOR"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVED\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(posApprovals);
+    }
 
     @MockitoBean(name = "firebaseJwtDecoder")
     private org.springframework.security.oauth2.jwt.JwtDecoder firebaseDecoder;
