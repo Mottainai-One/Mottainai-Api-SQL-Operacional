@@ -6,6 +6,14 @@
 -- 2026-11-02-operational-test-accounts-inserts.sql
 -- Nenhum funcionario, cargo ou usuario preexistente foi atualizado.
 
+-- PRIORIDADE ZERO / BLOQUEIO DO LOGIN FIREBASE:
+-- fn_bootstrap_staff_context(text,text) existe, MAS sua definicao no Aiven so
+-- aceita CPF, EMAIL e INVITED_CPF. FIREBASE_UID retorna FALSE imediatamente.
+-- Os vinculos 505/506 existem; esse contrato antigo ainda os impede de entrar.
+-- A adaptacao para revisao da DBA esta em:
+-- 2026-11-02-adaptar-bootstrap-firebase-uid.sql (padrao ROLLBACK, nao executado).
+-- Preserva os tres fluxos existentes e acrescenta a comparacao exata de UID.
+
 -- 1. CONTRATO AUSENTE: criacao de usuario de funcionario
 -- Assinatura esperada pela API:
 -- mottainai.fn_api_create_staff_user(integer, text, boolean, boolean) RETURNS integer
@@ -75,6 +83,10 @@ FROM (VALUES
  ('mottainai.fn_api_create_staff_user(integer,text,boolean,boolean)'),
  ('mottainai.fn_api_record_audit(text,mottainai.audit_operation,text,integer,jsonb,jsonb)')
 ) required(signature);
+
+SELECT position('FIREBASE_UID' IN pg_get_functiondef(
+    'mottainai.fn_bootstrap_staff_context(text,text)'::regprocedure)) > 0
+    AS bootstrap_declara_suporte_a_firebase_uid;
 
 SELECT rolname, rolcanlogin, rolbypassrls
 FROM pg_roles WHERE rolname IN (current_user, 'mottainai_api', 'operational_login');

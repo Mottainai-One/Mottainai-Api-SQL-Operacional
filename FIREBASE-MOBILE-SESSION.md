@@ -22,6 +22,8 @@ Auditoria usa o `app_user.user_id` autenticado. Erro ou retorno FALSE/NULL da fu
 
 Consultar `scripts/check-operational-mobile-readiness.sql`. É um roteiro de requisitos com consultas somente leitura, sem DDL/grants/atualizações. As duas funções ausentes na conferência são `fn_api_create_staff_user(integer,text,boolean,boolean)` e `fn_api_record_audit(text,mottainai.audit_operation,text,integer,jsonb,jsonb)`.
 
+O bloqueio imediato do login foi identificado na definição da função existente `fn_bootstrap_staff_context`: ela só aceita CPF, EMAIL e INVITED_CPF, recusando FIREBASE_UID antes da consulta. Portanto, a existência da função e dos vínculos não comprova compatibilidade. `scripts/2026-11-02-adaptar-bootstrap-firebase-uid.sql` propõe a comparação exata por UID preservando os três modos anteriores. O script contém DDL para revisão da DBA, termina em ROLLBACK e NÃO foi executado pelo agente; a DBA deve revisar, validar e usar COMMIT para aplicá-lo. O projeto Firebase do contêiner foi conferido e corresponde ao mobile. O teste ponta a ponta ainda retorna 401 enquanto esse contrato não for adaptado.
+
 As contas técnicas 505/506 já foram inseridas e vinculadas à loja/empresa 4; não reprovisionar. Os INSERTs completos e credenciais de teste permanecem no ambiente privado, fora desta PR. Não publicar senhas, chaves, envelopes de PII ou arquivos de configuração. As contas antigas não foram alteradas.
 
 A API local ainda usa credencial administrativa BYPASSRLS. A responsável deve fornecer/configurar identidade de serviço com privilégios mínimos e validar o contexto RLS. A configuração de criptografia histórica também precisa ser compatível para fluxos que leem PII da equipe; autenticar não exige descriptografar esses campos.
