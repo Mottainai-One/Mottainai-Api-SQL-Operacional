@@ -29,8 +29,8 @@ public class AppUser {
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
-    @Column(nullable = false, unique = true, length = 150)
-    private String email;
+    @Column(name = "firebase_uid", length = 255)
+    private String firebaseUid;
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
@@ -38,9 +38,16 @@ public class AppUser {
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
+    @Column(name = "password_set", nullable = false)
+    private Boolean passwordSet = true;
+
+    @Column(name = "token_version", nullable = false)
+    private Integer tokenVersion = 0;
+
     @Column(nullable = false)
     private Boolean active;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
 }

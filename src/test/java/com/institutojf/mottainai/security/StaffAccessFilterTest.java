@@ -1,0 +1,136 @@
+package com.institutojf.mottainai.security;
+
+import com.institutojf.mottainai.service.RlsContextService;
+import com.institutojf.mottainai.model.Customer;
+import com.institutojf.mottainai.model.CustomerAuth;
+import com.institutojf.mottainai.repository.CustomerAuthRepository;
+import jakarta.servlet.FilterChain;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.List;
+
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class StaffAccessFilterTest {
+
+    @Mock
+    private RlsContextService rlsContextService;
+
+    @Mock
+    private CustomerAuthRepository customerAuthRepository;
+
+    private StaffAccessFilter filter;
+
+    private JwtProperties jwtProperties = new JwtProperties("secret", "https://mottainai.local", 60, 7);
+
+    @BeforeEach
+    void setUp() {
+        filter = new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName("Should reject a staff token that fails session validation")
+    void shouldRejectInvalidStaffSession() throws Exception {
+        Jwt jwt = token();
+        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(new MockHttpServletRequest(), response, chain);
+        assertEquals(401, response.getStatus());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(rlsContextService).validateAccessToken(jwt);
+        verifyNoInteractions(chain);
+    }
+
+    @Test
+    @DisplayName("Should pass a staff token with a valid session")
+    void shouldAllowValidStaffSession() throws Exception {
+        Jwt jwt = token();
+        SecurityContextHolder.getContext().setAuthentication(staff(jwt));
+        when(rlsContextService.validateAccessToken(jwt)).thenReturn(true);
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, chain);
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Should reject Firebase bearer tokens even if their role claim says owner")
+    void shouldRejectFirebaseBearerWithOwnerRoleClaim() throws Exception {
+        Jwt jwt = new Jwt("firebase-token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "RS256"),
+                Map.of("sub", "staff-uid", "email", "operator@mottainai.com",
+                        "iss", "https://securetoken.google.com/mottainai-operational", "role", "dono"));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"), new SimpleGrantedAuthority("ROLE_MANAGER"))));
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(new MockHttpServletRequest(), response, chain);
+
+        assertEquals(403, response.getStatus());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verifyNoInteractions(rlsContextService, chain, customerAuthRepository);
+    }
+
+    @Test
+    @DisplayName("Should allow a customer without a staff session")
+    void shouldAllowCustomerWithoutStaffSessionBootstrap() throws Exception {
+        String loginToken = ProtectedDataToken.email("ana@example.com");
+        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
+                Map.of("sub", loginToken, "use", "access", "iss", jwtProperties.issuer()));
+        Customer customer = new Customer();
+        customer.setActive(true);
+        CustomerAuth customerAuth = new CustomerAuth();
+        customerAuth.setActive(true);
+        customerAuth.setCustomer(customer);
+        customerAuth.setPasswordChangedAt(LocalDateTime.now().minusMinutes(1));
+        when(customerAuthRepository.findByLoginEmailIgnoreCase(loginToken))
+            .thenReturn(java.util.Optional.of(customerAuth));
+        SecurityContextHolder.getContext()
+            .setAuthentication(new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, chain);
+        verifyNoInteractions(rlsContextService);
+        verify(chain).doFilter(request, response);
+    }
+
+    private JwtAuthenticationToken staff(Jwt jwt) {
+        return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR")));
+    }
+
+    private Jwt token() {
+        return new Jwt("token", Instant.now(), Instant.now().plusSeconds(60), Map.of("alg", "HS256"),
+                Map.of("sub", "firebase-staff-uid", "use", "access", "iss", jwtProperties.issuer()));
+    }
+
+}

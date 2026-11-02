@@ -1,14 +1,23 @@
 package com.institutojf.mottainai.security;
 
+import com.institutojf.mottainai.repository.AppUserRepository;
+import com.institutojf.mottainai.repository.CustomerAuthRepository;
+import com.institutojf.mottainai.service.RlsContextService;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,48 +25,151 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtIssuerAuthenticationManagerResolver;
 import org.springframework.security.web.SecurityFilterChain;
-
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableMethodSecurity(proxyTargetClass = true)
+@EnableTransactionManagement(order = Ordered.HIGHEST_PRECEDENCE)
+@EnableConfigurationProperties({ JwtProperties.class, FirebaseProperties.class })
 public class SecurityConfig {
+
+    private static final String FIREBASE_JWK_SET_URI = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
     private final JwtProperties jwtProperties;
 
-    public SecurityConfig(JwtProperties jwtProperties) {
+    private final FirebaseProperties firebaseProperties;
+
+    private final AppUserRepository appUserRepository;
+
+    private final List<String> allowedOrigins;
+
+    public SecurityConfig(JwtProperties jwtProperties, AppUserRepository appUserRepository) {
+        this(jwtProperties, new FirebaseProperties(""), appUserRepository, "");
+    }
+
+    public SecurityConfig(JwtProperties jwtProperties, FirebaseProperties firebaseProperties, AppUserRepository appUserRepository) {
+        this(jwtProperties, firebaseProperties, appUserRepository, "");
+    }
+
+    @Autowired
+    public SecurityConfig(JwtProperties jwtProperties, FirebaseProperties firebaseProperties, AppUserRepository appUserRepository, @Value("${security.cors.allowed-origins:}") String allowedOrigins) {
         this.jwtProperties = jwtProperties;
+        this.firebaseProperties = firebaseProperties;
+        this.appUserRepository = appUserRepository;
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(origin -> !origin.isEmpty())
+            .toList();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/auth/login", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**", "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/**").hasAnyRole("ADMIN", "MANAGER")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/**").hasAnyRole("ADMIN", "MANAGER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "MANAGER")
-                        .anyRequest().authenticated()
-                )
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                );
-
+    @Order(1)
+    public SecurityFilterChain clientSecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/v1/client/**", "/api/v1/customer-catalog/**")
+            .csrf(AbstractHttpConfigurer::disable)
+            .cors(Customizer.withDefaults())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**").authenticated()
+                .requestMatchers("/api/v1/customer-catalog/**").denyAll()
+                .anyRequest().authenticated())
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(firebaseJwtDecoder())));
         return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    public SecurityFilterChain staffSecurityFilterChain(HttpSecurity http, RlsContextService rlsContextService,
+            CustomerAuthRepository customerAuthRepository,
+            com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
+            .cors(Customizer.withDefaults())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/firebase", "/api/v1/auth/refresh",
+                        "/api/v1/auth/password-reset", "/api/v1/auth/password-reset/validate",
+                        "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+                        "/actuator/health")
+                .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/cep/**")
+                .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/customer-catalog/**")
+                .hasRole("CUSTOMER")
+                .requestMatchers("/api/v1/customer-catalog/**")
+                .denyAll()
+                .requestMatchers("/api/v1/customers/**", "/api/v1/loyalty/**")
+                .authenticated()
+                .requestMatchers("/api/v1/auth/logout", "/api/v1/auth/password")
+                .authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/inventory-counts/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER", "SUPERVISOR", "OPERATOR")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/inventory-counts/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER", "SUPERVISOR", "OPERATOR")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/inventory-counts/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER", "SUPERVISOR", "OPERATOR")
+                .requestMatchers(HttpMethod.POST, "/api/v1/damages", "/api/v1/damages/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER", "SUPERVISOR", "OPERATOR")
+                .requestMatchers(HttpMethod.GET, "/api/v1/**")
+                .access(new WebExpressionAuthorizationManager("isAuthenticated() and !hasRole('CUSTOMER')"))
+                .requestMatchers(HttpMethod.POST, "/api/v1/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/**")
+                .hasAnyRole("ADMINISTRATOR", "MANAGER")
+                .anyRequest()
+                .authenticated())
+            .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(staffAuthenticationManagerResolver(firebaseStaff)))
+            .addFilterAfter(new StaffAccessFilter(rlsContextService, customerAuthRepository, jwtProperties, firebaseProperties),
+                    BearerTokenAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
+        configuration.setExposedHeaders(List.of("Location"));
+        configuration.setAllowCredentials(false);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
     }
 
     @Bean
@@ -80,10 +192,16 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey())
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-        decoder.setJwtValidator(org.springframework.security.oauth2.jwt.JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()));
+            .macAlgorithm(MacAlgorithm.HS256)
+            .build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()));
         return decoder;
+    }
+
+    @Bean("firebaseJwtDecoder")
+    public JwtDecoder firebaseJwtDecoder() {
+        return FirebaseJwtDecoderFactory.create(firebaseProperties.projectId(), FIREBASE_JWK_SET_URI,
+                java.time.Duration.ofSeconds(5), java.time.Duration.ofSeconds(8));
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
@@ -94,6 +212,26 @@ public class SecurityConfig {
         JwtAuthenticationConverter authenticationConverter = new JwtAuthenticationConverter();
         authenticationConverter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
         return authenticationConverter;
+    }
+
+    private JwtIssuerAuthenticationManagerResolver staffAuthenticationManagerResolver(
+            com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff) {
+        Map<String, AuthenticationManager> managers = new HashMap<>();
+        managers.put(jwtProperties.issuer(), jwtAuthenticationManager(jwtDecoder(), jwtAuthenticationConverter()));
+        if (firebaseProperties.projectId() != null && !firebaseProperties.projectId().isBlank()) {
+            JwtAuthenticationProvider firebaseProvider = new JwtAuthenticationProvider(firebaseJwtDecoder());
+            firebaseProvider.setJwtAuthenticationConverter(firebaseStaff::authenticate);
+            managers.put("https://securetoken.google.com/" + firebaseProperties.projectId(),
+                    new ProviderManager(firebaseProvider));
+        }
+        return new JwtIssuerAuthenticationManagerResolver(managers::get);
+    }
+
+    private AuthenticationManager jwtAuthenticationManager(
+            JwtDecoder decoder, JwtAuthenticationConverter converter) {
+        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);
+        provider.setJwtAuthenticationConverter(converter);
+        return new ProviderManager(provider);
     }
 
     private SecretKey jwtSecretKey() {
@@ -107,4 +245,5 @@ public class SecurityConfig {
             throw new IllegalStateException("JWT secret must be Base64 encoded", exception);
         }
     }
+
 }

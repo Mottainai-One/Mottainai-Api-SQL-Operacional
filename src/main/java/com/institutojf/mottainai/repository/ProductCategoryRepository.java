@@ -10,8 +10,8 @@ import java.util.Optional;
 public interface ProductCategoryRepository extends JpaRepository<ProductCategory, Integer> {
 
     /**
-     * Busca uma categoria disponível para uso operacional pelo identificador.
-     * Categorias inativas ou excluídas logicamente não são retornadas.
+     * Busca uma categoria disponível para uso operacional pelo identificador. Categorias
+     * inativas ou excluídas logicamente não são retornadas.
      */
     Optional<ProductCategory> findByIdAndActiveTrueAndDeletedAtIsNull(Integer id);
 
@@ -23,14 +23,16 @@ public interface ProductCategoryRepository extends JpaRepository<ProductCategory
     Page<ProductCategory> findAllByActiveTrueAndDeletedAtIsNull(Pageable pageable);
 
     /**
-     * Busca uma categoria pelo nome, ignorando maiúsculas e minúsculas.
-     * Usado para validar duplicidade durante criação e atualização.
+     * Busca uma categoria pelo nome, ignorando maiúsculas e minúsculas. Usado para
+     * validar duplicidade durante criação e atualização.
      */
     Optional<ProductCategory> findByNameIgnoreCase(String name);
 
     /**
-     * Verifica se já existe uma categoria com o nome informado, ignorando maiúsculas e minúsculas.
-     * A validação antecipada permite retornar um erro amigável; o banco mantém a restrição final de unicidade.
+     * Verifica se já existe uma categoria com o nome informado, ignorando maiúsculas e
+     * minúsculas. A validação antecipada permite retornar um erro amigável; o banco
+     * mantém a restrição final de unicidade.
      */
     boolean existsByNameIgnoreCase(String name);
+
 }

@@ -9,10 +9,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "employee", schema = "mottainai")
@@ -26,12 +28,28 @@ public class Employee {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "store_id", nullable = false)
+    private RetailStore store;
+
+    @jakarta.persistence.OneToOne(mappedBy = "employee", fetch = FetchType.LAZY)
+    private EmployeePrivateData privateData;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false)
     private EmployeeRole role;
 
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(name = "hire_date", nullable = false)
+    private LocalDate hireDate;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(name = "cpf_lookup_hmac", columnDefinition = "bytea")
+    private byte[] cpfLookupHmac;
+
+    @Column(name = "email_lookup_hmac", columnDefinition = "bytea")
+    private byte[] emailLookupHmac;
 }

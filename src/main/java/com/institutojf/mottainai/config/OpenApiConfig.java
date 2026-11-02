@@ -18,15 +18,13 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI mottainaiOpenApi() {
         return new OpenAPI()
-                .info(new Info()
-                        .title("Mottainai API")
-                        .version("v1")
-                        .description("REST API for predictive retail inventory management")
-                        .license(new License().name("Academic project")))
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
-                .components(new Components().addSecuritySchemes("bearerAuth", new SecurityScheme()
-                        .type(SecurityScheme.Type.HTTP)
-                        .scheme("bearer")
-                        .bearerFormat("JWT")));
+            .info(new Info().title("Mottainai API")
+                .version("v1")
+                .description("REST API for predictive retail inventory management")
+                .license(new License().name("Academic project")))
+            .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
+            .components(new Components().addSecuritySchemes("bearerAuth",
+                    new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")));
     }
+
 }

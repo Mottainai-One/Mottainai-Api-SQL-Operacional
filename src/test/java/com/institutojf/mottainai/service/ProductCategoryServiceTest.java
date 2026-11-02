@@ -20,7 +20,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,11 +47,8 @@ class ProductCategoryServiceTest {
     @DisplayName("Should reject category when name already exists")
     void shouldRejectCategoryWhenNameAlreadyExists() {
         when(categoryRepository.existsByNameIgnoreCase("Food")).thenReturn(true);
-
-        assertThrows(ConflictException.class, () -> productCategoryService.create(
-                new CreateProductCategoryRequest("Food", "Food products")
-        ));
-
+        assertThrows(ConflictException.class,
+                () -> productCategoryService.create(new CreateProductCategoryRequest("Food", "Food products")));
         verify(categoryRepository, never()).save(any());
     }
 
@@ -63,24 +60,19 @@ class ProductCategoryServiceTest {
         duplicate.setName("Drinks");
         when(categoryRepository.findByIdAndDeletedAtIsNull(1)).thenReturn(Optional.of(category));
         when(categoryRepository.findByNameIgnoreCase("Drinks")).thenReturn(Optional.of(duplicate));
-
-        assertThrows(ConflictException.class, () -> productCategoryService.update(
-                1, new UpdateProductCategoryRequest("Drinks", "Beverages", true)
-        ));
-
+        assertThrows(ConflictException.class,
+                () -> productCategoryService.update(1, new UpdateProductCategoryRequest("Drinks", "Beverages", true)));
         verify(categoryRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should deactivate category without soft deleting it")
-    void shouldDeactivateCategoryWithoutSoftDeletingIt() {
+    @DisplayName("Should deactivate category and mark it logically deleted")
+    void shouldDeactivateCategoryAndMarkItLogicallyDeleted() {
         ProductCategory category = category(1, true);
         when(categoryRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(category));
-
-        productCategoryService.deactivate(1);
-
+        productCategoryService.delete(1);
         assertFalse(category.getActive());
-        assertNull(category.getDeletedAt());
+        assertNotNull(category.getDeletedAt());
         verify(categoryRepository).save(category);
     }
 
@@ -90,9 +82,7 @@ class ProductCategoryServiceTest {
         ProductCategory category = category(1, true);
         when(categoryRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(category));
         when(productRepository.existsByCategory_IdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(true);
-
-        assertThrows(BusinessException.class, () -> productCategoryService.deactivate(1));
-
+        assertThrows(BusinessException.class, () -> productCategoryService.delete(1));
         verify(categoryRepository, never()).save(any());
     }
 
@@ -100,9 +90,7 @@ class ProductCategoryServiceTest {
     @DisplayName("Should return not found when deactivating a nonexistent category")
     void shouldReturnNotFoundWhenDeactivatingANonexistentCategory() {
         when(categoryRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () -> productCategoryService.deactivate(1));
-
+        assertThrows(ResourceNotFoundException.class, () -> productCategoryService.delete(1));
         verify(categoryRepository, never()).save(any());
     }
 
@@ -112,9 +100,7 @@ class ProductCategoryServiceTest {
         ProductCategory category = category(1, false);
         when(categoryRepository.findByIdAndDeletedAtIsNull(1)).thenReturn(Optional.of(category));
         when(categoryRepository.save(category)).thenReturn(category);
-
         productCategoryService.update(1, new UpdateProductCategoryRequest("Dry food", "Shelf-stable food", true));
-
         assertEquals("Dry food", category.getName());
         assertEquals("Shelf-stable food", category.getDescription());
         assertTrue(category.getActive());
@@ -128,4 +114,5 @@ class ProductCategoryServiceTest {
         category.setActive(active);
         return category;
     }
+
 }

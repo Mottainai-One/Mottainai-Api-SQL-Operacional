@@ -11,16 +11,10 @@ import org.springframework.stereotype.Component;
 public class SupplierProductMapper {
 
     public SupplierProductResponse toResponse(SupplierProduct supplierProduct) {
-        return new SupplierProductResponse(
-                supplierProduct.getId(),
-                supplierProduct.getSupplier().getId(),
-                supplierProduct.getSupplier().getTradeName(),
-                supplierProduct.getProduct().getId(),
-                supplierProduct.getProduct().getName(),
-                supplierProduct.getSupplierCode(),
-                supplierProduct.getPurchasePrice(),
-                supplierProduct.getLeadTime(),
-                supplierProduct.getActive()
-        );
+        return new SupplierProductResponse(supplierProduct.getId(), supplierProduct.getSupplier().getId(),
+                supplierProduct.getSupplier().getTradeName(), supplierProduct.getProduct().getId(),
+                supplierProduct.getProduct().getName(), supplierProduct.getSupplierCode(),
+                supplierProduct.getPurchasePrice(), supplierProduct.getLeadTime(), supplierProduct.getActive());
     }
+
 }

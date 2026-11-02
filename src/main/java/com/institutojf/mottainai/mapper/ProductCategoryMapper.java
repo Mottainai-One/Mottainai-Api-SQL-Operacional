@@ -11,11 +11,8 @@ import org.springframework.stereotype.Component;
 public class ProductCategoryMapper {
 
     public ProductCategoryResponse toResponse(ProductCategory category) {
-        return new ProductCategoryResponse(
-                category.getId(),
-                category.getName(),
-                category.getDescription(),
-                category.getActive()
-        );
+        return new ProductCategoryResponse(category.getId(), category.getName(), category.getDescription(),
+                category.getActive());
     }
+
 }

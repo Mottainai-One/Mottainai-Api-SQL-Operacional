@@ -47,4 +47,5 @@ public class ProductCategory {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
 }

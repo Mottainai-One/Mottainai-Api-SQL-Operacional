@@ -34,11 +34,28 @@ public class Product {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
+    private Company company;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private ProductCategory category;
 
-    @Column(nullable = false, unique = true, length = 30)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tax_profile_id", nullable = false)
+    private TaxProfile taxProfile;
+
+    @Column(nullable = false, length = 50)
+    private String sku;
+
+    @Column(nullable = false, length = 30)
     private String barcode;
+
+    @Column(nullable = false, length = 8)
+    private String ncm;
+
+    @Column(length = 7)
+    private String cest;
 
     @Column(nullable = false, length = 150)
     private String name;
@@ -54,6 +71,9 @@ public class Product {
 
     @Column(precision = 10, scale = 3)
     private BigDecimal weight;
+
+    @Column(name = "image_url", length = 2048)
+    private String imageUrl;
 
     @Column(nullable = false)
     private Boolean active = true;
@@ -72,4 +92,5 @@ public class Product {
     @Version
     @Column(nullable = false)
     private Integer version = 1;
+
 }

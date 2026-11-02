@@ -21,11 +21,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "supplier_product",
-        schema = "mottainai",
-        uniqueConstraints = @UniqueConstraint(name = "uk_supplier_product", columnNames = {"supplier_id", "product_id"})
-)
+@Table(name = "supplier_product", schema = "mottainai",
+        uniqueConstraints = @UniqueConstraint(name = "uk_supplier_product",
+                columnNames = { "supplier_id", "product_id" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -67,4 +65,5 @@ public class SupplierProduct {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
 }

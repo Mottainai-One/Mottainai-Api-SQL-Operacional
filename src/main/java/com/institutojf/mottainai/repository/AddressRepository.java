@@ -13,10 +13,6 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
     Optional<Address> findByIdAndDeletedAtIsNull(Integer id);
 
     Page<Address> findAllByDeletedAtIsNull(Pageable pageable);
-
-    /**
-     * Verifica se o endereço já existe, mesmo sem complemento
-     */
     @Query("""
             SELECT COUNT(address) > 0
             FROM Address address

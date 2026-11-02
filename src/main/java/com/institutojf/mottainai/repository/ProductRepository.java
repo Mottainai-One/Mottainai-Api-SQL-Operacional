@@ -10,10 +10,6 @@ import java.util.Optional;
 public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     /**
-     * Busca um produto disponível para uso operacional pelo identificador.
-     * Produtos inativos ou excluídos logicamente não são retornados.
-     */
-    /**
      * Busca um produto ativo pelo ID.
      */
     Optional<Product> findByIdAndActiveTrueAndDeletedAtIsNull(Integer id);
@@ -22,7 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     /**
      * Busca um produto disponível para uso operacional pelo código de barras.
-     * Este método será usado em fluxos, como consulta de SKU e recebimento de mercadoria.
      */
     Optional<Product> findByBarcodeAndActiveTrueAndDeletedAtIsNull(String barcode);
 
@@ -31,11 +26,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      */
     Page<Product> findAllByActiveTrueAndDeletedAtIsNull(Pageable pageable);
 
-    /**
-     * Verifica se o código de barras já foi cadastrado.
-     * A consulta considera inclusive produtos inativos, pois o banco exige barcode único globalmente.
-     */
-    boolean existsByBarcode(String barcode);
+    boolean existsByCompany_IdAndBarcode(Integer companyId, String barcode);
 
     boolean existsByCategory_IdAndActiveTrueAndDeletedAtIsNull(Integer categoryId);
+
+    boolean existsByTaxProfile_IdAndActiveTrueAndDeletedAtIsNull(Integer taxProfileId);
 }

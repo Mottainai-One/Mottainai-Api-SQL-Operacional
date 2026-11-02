@@ -1,82 +1,350 @@
 package com.institutojf.mottainai.security;
 
-import com.institutojf.mottainai.controller.ProductController;
-import com.institutojf.mottainai.dto.response.ProductResponse;
+import com.institutojf.mottainai.controller.EmployeeController;
 import com.institutojf.mottainai.repository.AppUserRepository;
-import com.institutojf.mottainai.service.ProductService;
+import com.institutojf.mottainai.repository.CustomerAuthRepository;
+import com.institutojf.mottainai.service.EmployeeService;
+import com.institutojf.mottainai.service.RlsContextService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
+import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(ProductController.class)
-@Import({SecurityConfig.class, DatabaseUserDetailsService.class})
-@TestPropertySource(properties = {
-        "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
-        "security.jwt.issuer=https://mottainai.local",
-        "security.jwt.expiration-minutes=60"
-})
+@WebMvcTest({ ApiSecurityTest.SecurityTestController.class, ApiSecurityTest.CatalogSecurityTestController.class,
+        ApiSecurityTest.InventoryCountSecurityTestController.class,
+        ApiSecurityTest.DamageSecurityTestController.class,
+        EmployeeController.class, com.institutojf.mottainai.controller.AuthenticationController.class,
+        com.institutojf.mottainai.controller.PosApprovalController.class })
+@Import({ SecurityConfig.class, DatabaseUserDetailsService.class, ApiSecurityTest.SecurityTestController.class,
+        ApiSecurityTest.CatalogSecurityTestController.class, ApiSecurityTest.InventoryCountSecurityTestController.class,
+        ApiSecurityTest.DamageSecurityTestController.class })
+@TestPropertySource(properties = { "security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
+        "security.jwt.issuer=https://mottainai.local", "security.jwt.expiration-minutes=60",
+        "security.cors.allowed-origins=https://app.example", "security.firebase.project-id=mottainai-operacional" })
 class ApiSecurityTest {
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.PosApprovalService posApprovals;
+
+    @Test
+    void posApprovalsRequireManagerEvenForReadAndCannotBeWrittenByOperator() throws Exception {
+        mockMvc.perform(get("/api/v1/pos-approvals")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/pos-approvals").with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/pos-approvals/00000000-0000-0000-0000-000000000001/decision")
+                .with(user("operator").roles("OPERATOR"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVED\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(posApprovals);
+    }
+
+    @MockitoBean(name = "firebaseJwtDecoder")
+    private org.springframework.security.oauth2.jwt.JwtDecoder firebaseDecoder;
+
+    @Test
+    void directFirebaseBearerUsesSqlAuthoritiesWithoutAnExchangeOrSession() throws Exception {
+        String bearer = firebaseBearer();
+        var token = org.springframework.security.oauth2.jwt.Jwt.withTokenValue(bearer).header("alg", "RS256")
+                .subject("firebase-uid").issuer("https://securetoken.google.com/mottainai-operacional").build();
+        when(firebaseDecoder.decode(bearer)).thenReturn(token);
+        when(firebaseStaff.authenticate(token)).thenReturn(new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(
+                token, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERATOR"))));
+        mockMvc.perform(get("/api/v1/security-probe").header("Authorization", "Bearer " + bearer))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/security-probe").header("Authorization", "Bearer " + bearer))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(authenticationService);
+        verify(rlsContextService, org.mockito.Mockito.never()).validateAccessToken(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsInvalidFirebaseSignatureAndUnlinkedOperationalAccount() throws Exception {
+        String bearer = firebaseBearer();
+        when(firebaseDecoder.decode(bearer)).thenThrow(new org.springframework.security.oauth2.jwt.BadJwtException("Invalid signature"));
+        mockMvc.perform(get("/api/v1/security-probe").header("Authorization", "Bearer " + bearer))
+                .andExpect(status().isUnauthorized());
+        var token = org.springframework.security.oauth2.jwt.Jwt.withTokenValue(bearer).header("alg", "RS256")
+                .subject("unlinked-uid").issuer("https://securetoken.google.com/mottainai-operacional").build();
+        org.mockito.Mockito.doReturn(token).when(firebaseDecoder).decode(bearer);
+        when(firebaseStaff.authenticate(token)).thenThrow(new org.springframework.security.authentication.BadCredentialsException("Unlinked account"));
+        mockMvc.perform(get("/api/v1/security-probe").header("Authorization", "Bearer " + bearer))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // Decoder is mocked: this tests routing through the bearer filter/provider, not Google's signature service.
+    private String firebaseBearer() {
+        var encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        return encoder.encodeToString("{\"alg\":\"RS256\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) + "."
+                + encoder.encodeToString("{\"iss\":\"https://securetoken.google.com/mottainai-operacional\",\"sub\":\"firebase-uid\"}"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)) + ".c2ln";
+    }
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.FirebaseStaffAuthenticationService firebaseStaff;
 
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private EmployeeController employeeController;
+
     @MockitoBean
-    private ProductService productService;
+    private EmployeeService employeeService;
 
     @MockitoBean
     private AppUserRepository appUserRepository;
 
+    @MockitoBean
+    private RlsContextService rlsContextService;
+
+    @MockitoBean
+    private CustomerAuthRepository customerAuthRepository;
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.AuthenticationService authenticationService;
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.UserProfileService userProfileService;
+
+    @MockitoBean
+    private com.institutojf.mottainai.service.MobileProfileService mobileProfileService;
+
+    @Test
+    void firebaseExchangeIsPublicButStillCallsIdentityValidation() throws Exception {
+        when(authenticationService.firebaseSession(org.mockito.ArgumentMatchers.any())).thenReturn(
+                new com.institutojf.mottainai.dto.response.TokenResponse("access", "refresh", "Bearer", 3600, 604800));
+        mockMvc.perform(post("/api/v1/auth/firebase")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"firebaseIdToken\":\"firebase-token-to-verify\"}"))
+                .andExpect(status().isOk());
+        verify(authenticationService).firebaseSession(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void mobileProfileRequiresStaffAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/mobile-profile")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/auth/mobile-profile").with(user("customer").roles("CUSTOMER")))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(mobileProfileService);
+    }
+
+    @Test
+    void firebaseExchangeRejectsInvalidIdentity() throws Exception {
+        when(authenticationService.firebaseSession(org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new org.springframework.security.authentication.BadCredentialsException("Invalid identity"));
+        mockMvc.perform(post("/api/v1/auth/firebase")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"firebaseIdToken\":\"invalid-token\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test
     @DisplayName("Should reject unauthenticated API request")
     void shouldRejectUnauthenticatedApiRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/products"))
-                .andExpect(status().isUnauthorized());
-
-        verify(productService, never()).findAll(any());
+        mockMvc.perform(get("/api/v1/security-probe")).andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("Should forbid write operation for operator")
     void shouldForbidWriteOperationForOperator() throws Exception {
-        mockMvc.perform(post("/api/v1/products")
-                        .with(user("operator@mottainai.com").roles("OPERATOR"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"categoryId\":1,\"barcode\":\"7891234567890\",\"name\":\"Rice\",\"unitMeasure\":\"KG\"}"))
-                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/security-probe").with(user("operator@mottainai.com").roles("OPERATOR"))).andExpect(status().isForbidden());
+    }
 
-        verify(productService, never()).create(any());
+    @Test
+    @DisplayName("Should allow an operator to record store-scoped inventory counts")
+    void shouldAllowOperatorInventoryCountWrites() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isCreated());
+        mockMvc.perform(put("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isOk());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .delete("/api/v1/inventory-counts/security-probe")
+                .with(user("operator@mottainai.com").roles("OPERATOR")))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Should keep inventory count writes unavailable to interns")
+    void shouldForbidInternInventoryCountWrites() throws Exception {
+        mockMvc.perform(post("/api/v1/inventory-counts/security-probe")
+                .with(user("intern@mottainai.com").roles("INTERN")))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should allow an operator to register a damage report")
+    void shouldAllowDamageReportForOperator() throws Exception {
+        mockMvc.perform(post("/api/v1/damages").with(user("operator@mottainai.com").roles("OPERATOR")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("Should forbid an intern from registering a damage report")
+    void shouldForbidDamageReportForIntern() throws Exception {
+        mockMvc.perform(post("/api/v1/damages").with(user("intern@mottainai.com").roles("INTERN")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("Should allow write operation for manager")
     void shouldAllowWriteOperationForManager() throws Exception {
-        when(productService.create(any())).thenReturn(new ProductResponse(
-                1, 1, "Food", "7891234567890", "Rice", null, null, "KG", BigDecimal.ONE, true, 1
-        ));
-
-        mockMvc.perform(post("/api/v1/products")
-                        .with(user("manager@mottainai.com").roles("MANAGER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"categoryId\":1,\"barcode\":\"7891234567890\",\"name\":\"Rice\",\"unitMeasure\":\"KG\"}"))
-                .andExpect(status().isCreated());
-
-        verify(productService).create(any());
+        mockMvc.perform(post("/api/v1/security-probe").with(user("manager@mottainai.com").roles("MANAGER"))).andExpect(status().isCreated());
     }
+
+    @Test
+    @DisplayName("Should allow idempotency header in browser preflight")
+    void shouldAllowIdempotencyHeaderInPreflight() throws Exception {
+        mockMvc
+            .perform(options("/api/v1/loyalty/redeem").header("Origin", "https://app.example")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Idempotency-Key,Content-Type"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Headers", containsString("Idempotency-Key")));
+    }
+
+    @Test
+    @DisplayName("Should forbid PATCH operation for operator")
+    void shouldForbidPatchForOperator() throws Exception {
+        mockMvc.perform(patch("/api/v1/security-probe").with(user("operator@mottainai.com").roles("OPERATOR"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should allow PATCH operation for manager")
+    void shouldAllowPatchForManager() throws Exception {
+        mockMvc.perform(patch("/api/v1/security-probe").with(user("manager@mottainai.com").roles("MANAGER"))).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Should reject customer access to a staff endpoint")
+    void shouldRejectCustomerFromStaffEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/security-probe").with(user("customer@mottainai.com").roles("CUSTOMER"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should require a Firebase-authenticated customer for customer catalog reads")
+    void shouldRequireFirebaseAuthenticationForCustomerCatalog() throws Exception {
+        mockMvc.perform(get("/api/v1/customer-catalog/security-probe"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/customer-catalog/security-probe")
+                .with(jwt().jwt(token -> token.subject("firebase-uid"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should proxy the secured employee controller with CGLIB")
+    void shouldProxyEmployeeControllerWithCglib() {
+        assertTrue(AopUtils.isCglibProxy(employeeController));
+    }
+
+    @Test
+    @DisplayName("Should enforce administrator authorization on the employee controller")
+    void shouldRejectManagerFromAdministratorMethod() throws Exception {
+        mockMvc.perform(get("/api/v1/employees-company").with(user("manager@mottainai.com").roles("MANAGER"))).andExpect(status().isForbidden());
+        verifyNoInteractions(employeeService);
+    }
+
+    @Test
+    @DisplayName("Should allow administrator access through the employee controller proxy")
+    void shouldAllowAdministratorThroughEmployeeControllerProxy() throws Exception {
+        when(employeeService.listCompany("admin@mottainai.com")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/employees-company").with(user("admin@mottainai.com").roles("ADMINISTRATOR"))).andExpect(status().isOk());
+        verify(employeeService).listCompany("admin@mottainai.com");
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/security-probe")
+    static class SecurityTestController {
+
+        @GetMapping
+        public String read() {
+            return "ok";
+        }
+
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() {
+            return "created";
+        }
+
+        @PatchMapping
+        public String update() {
+            return "updated";
+        }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/customer-catalog/security-probe")
+    static class CatalogSecurityTestController {
+        @GetMapping
+        public String read() {
+            return "ok";
+        }
+
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() {
+            return "created";
+        }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/inventory-counts/security-probe")
+    static class InventoryCountSecurityTestController {
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() { return "created"; }
+
+        @PutMapping
+        public String update() { return "updated"; }
+
+        @DeleteMapping
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void delete() { }
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/damages")
+    static class DamageSecurityTestController {
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public String create() { return "created"; }
+    }
+
 }

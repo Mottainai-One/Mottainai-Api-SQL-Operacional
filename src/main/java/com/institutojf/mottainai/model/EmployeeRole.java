@@ -25,8 +25,20 @@ public class EmployeeRole {
     @Column(nullable = false, unique = true, length = 80)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "permission_level", nullable = false)
+    private Integer permissionLevel;
+
     @Column(nullable = false)
     private Boolean active;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

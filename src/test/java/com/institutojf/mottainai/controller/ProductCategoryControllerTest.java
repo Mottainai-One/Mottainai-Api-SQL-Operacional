@@ -42,42 +42,38 @@ class ProductCategoryControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(productCategoryController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .build();
     }
 
     @Test
     @DisplayName("Should create category with location header")
     void shouldCreateCategoryWithLocationHeader() throws Exception {
         when(categoryService.create(any())).thenReturn(new ProductCategoryResponse(1, "Food", "Food products", true));
-
-        mockMvc.perform(post("/api/v1/product-categories")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new CreateProductCategoryRequest("Food", "Food products"))))
-                .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/v1/product-categories/1"))
-                .andExpect(jsonPath("$.name").value("Food"));
-
+        mockMvc
+            .perform(post("/api/v1/product-categories").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CreateProductCategoryRequest("Food", "Food products"))))
+            .andExpect(status().isCreated())
+            .andExpect(header().string("Location", "/api/v1/product-categories/1"))
+            .andExpect(jsonPath("$.name").value("Food"));
         verify(categoryService).create(any());
     }
 
     @Test
     @DisplayName("Should reject invalid category request")
     void shouldRejectInvalidCategoryRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/product-categories")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))
-                .andExpect(status().isBadRequest());
-
+        mockMvc
+            .perform(post("/api/v1/product-categories").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\"}"))
+            .andExpect(status().isBadRequest());
         verify(categoryService, never()).create(any());
     }
 
     @Test
     @DisplayName("Should deactivate category with no content response")
     void shouldDeactivateCategoryWithNoContentResponse() throws Exception {
-        mockMvc.perform(delete("/api/v1/product-categories/1"))
-                .andExpect(status().isNoContent());
-
-        verify(categoryService).deactivate(1);
+        mockMvc.perform(delete("/api/v1/product-categories/1")).andExpect(status().isNoContent());
+        verify(categoryService).delete(1);
     }
+
 }

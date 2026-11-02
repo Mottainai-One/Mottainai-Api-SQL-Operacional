@@ -1,14 +1,16 @@
 package com.institutojf.mottainai.service;
 
 import com.institutojf.mottainai.dto.request.CreateSupplierRequest;
+import com.institutojf.mottainai.dto.request.CreateAddressRequest;
+import com.institutojf.mottainai.dto.request.UpdateAddressRequest;
 import com.institutojf.mottainai.dto.request.UpdateSupplierRequest;
 import com.institutojf.mottainai.exception.BusinessException;
 import com.institutojf.mottainai.exception.ConflictException;
 import com.institutojf.mottainai.exception.ResourceNotFoundException;
 import com.institutojf.mottainai.mapper.SupplierMapper;
+import com.institutojf.mottainai.security.ProtectedDataToken;
 import com.institutojf.mottainai.model.Address;
 import com.institutojf.mottainai.model.Supplier;
-import com.institutojf.mottainai.repository.AddressRepository;
 import com.institutojf.mottainai.repository.SupplierRepository;
 import com.institutojf.mottainai.repository.SupplierProductRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -22,10 +24,11 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +40,7 @@ class SupplierServiceTest {
     private SupplierRepository supplierRepository;
 
     @Mock
-    private AddressRepository addressRepository;
+    private AddressService addressService;
 
     @Mock
     private SupplierProductRepository supplierProductRepository;
@@ -55,8 +58,7 @@ class SupplierServiceTest {
         when(supplierRepository.existsByCnpj(request.cnpj())).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> supplierService.create(request));
-
-        verify(addressRepository, never()).findByIdAndDeletedAtIsNull(any());
+        verify(addressService, never()).createAddress(any());
         verify(supplierRepository, never()).save(any());
     }
 
@@ -65,23 +67,22 @@ class SupplierServiceTest {
     void shouldRejectSupplierWhenAddressDoesNotExist() {
         CreateSupplierRequest request = request();
         when(supplierRepository.existsByCnpj(request.cnpj())).thenReturn(false);
-        when(addressRepository.findByIdAndDeletedAtIsNull(request.addressId())).thenReturn(Optional.empty());
-
+        when(addressService.createAddress(request.address())).thenThrow(new ResourceNotFoundException("Address not found"));
         assertThrows(ResourceNotFoundException.class, () -> supplierService.create(request));
 
         verify(supplierRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should deactivate supplier without soft deleting it")
-    void shouldDeactivateSupplierWithoutSoftDeletingIt() {
+    @DisplayName("Should deactivate supplier and mark it logically deleted")
+    void shouldDeactivateSupplierAndMarkItLogicallyDeleted() {
         Supplier supplier = supplier(1, true);
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(supplier));
 
-        supplierService.deactivate(1);
+        supplierService.delete(1);
 
         assertFalse(supplier.getActive());
-        assertNull(supplier.getDeletedAt());
+        assertNotNull(supplier.getDeletedAt());
         verify(supplierRepository).save(supplier);
     }
 
@@ -92,7 +93,7 @@ class SupplierServiceTest {
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.of(supplier));
         when(supplierProductRepository.existsBySupplier_IdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(true);
 
-        assertThrows(BusinessException.class, () -> supplierService.deactivate(1));
+        assertThrows(BusinessException.class, () -> supplierService.delete(1));
 
         verify(supplierRepository, never()).save(any());
     }
@@ -102,7 +103,7 @@ class SupplierServiceTest {
     void shouldReturnNotFoundWhenDeactivatingANonexistentSupplier() {
         when(supplierRepository.findByIdAndActiveTrueAndDeletedAtIsNull(1)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> supplierService.deactivate(1));
+        assertThrows(ResourceNotFoundException.class, () -> supplierService.delete(1));
 
         verify(supplierRepository, never()).save(any());
     }
@@ -114,18 +115,18 @@ class SupplierServiceTest {
         Address address = new Address();
         address.setId(2);
         when(supplierRepository.findByIdAndDeletedAtIsNull(1)).thenReturn(Optional.of(supplier));
-        when(addressRepository.findByIdAndDeletedAtIsNull(2)).thenReturn(Optional.of(address));
+        when(addressService.updateAddress(eq(1), any())).thenReturn(address);
         when(supplierRepository.save(supplier)).thenReturn(supplier);
 
-        supplierService.update(1, new UpdateSupplierRequest(
-                2, "Fornecedor Atualizado", "novo@fornecedor.com", "11888888888", true
-        ));
+        supplierService.update(1, new UpdateSupplierRequest(updateAddressRequest(), "Fornecedor Atualizado", "novo@fornecedor.com", "11888888888", true));
 
-        assertEquals(address, supplier.getAddress());
+        assertEquals(1, supplier.getAddress().getId());
         assertEquals("Fornecedor Atualizado", supplier.getTradeName());
-        assertEquals("novo@fornecedor.com", supplier.getEmail());
-        assertEquals("11888888888", supplier.getPhone());
+        assertEquals(ProtectedDataToken.email("novo@fornecedor.com"), supplier.getEmail());
+        assertEquals(ProtectedDataToken.phone("11888888888"), supplier.getPhone());
         assertTrue(supplier.getActive());
+
+        verify(addressService).updateAddress(eq(1), any());
         verify(supplierRepository).save(supplier);
     }
 
@@ -133,12 +134,26 @@ class SupplierServiceTest {
         Supplier supplier = new Supplier();
         supplier.setId(id);
         supplier.setActive(active);
+        supplier.setAddress(address());
         return supplier;
     }
 
-    private CreateSupplierRequest request() {
-        return new CreateSupplierRequest(
-                1, "Fornecedor Teste", "11222333000181", "fornecedor@teste.com", "11999999999"
-        );
+    private Address address() {
+        Address address = new Address();
+        address.setId(1);
+        return address;
     }
+
+    private CreateSupplierRequest request() {
+        return new CreateSupplierRequest(createAddressRequest(), "Fornecedor Teste", "11222333000181", "fornecedor@teste.com", "11999999999");
+    }
+
+    private CreateAddressRequest createAddressRequest() {
+        return new CreateAddressRequest("05120060", "Rua Irineu José Bordon", "335", null, "Vila Jaguara", "São Paulo", "SP");
+    }
+
+    private UpdateAddressRequest updateAddressRequest() {
+        return new UpdateAddressRequest("05120060", "Rua Irineu José Bordon", "335", null, "Vila Jaguara", "São Paulo", "SP");
+    }
+
 }

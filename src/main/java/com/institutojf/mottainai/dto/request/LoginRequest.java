@@ -1,10 +1,10 @@
 package com.institutojf.mottainai.dto.request;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record LoginRequest(
-        @NotBlank @Email String email,
+        @NotBlank @Size(max = 8192) String firebaseIdToken,
         @NotBlank String password
 ) {
 }
